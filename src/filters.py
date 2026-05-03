@@ -123,20 +123,21 @@ def apply_hard_filters(
     sold_filter_active = _is_active(hf.get("exclude_sold_or_under_offer"))
     fixer_desc_active = _is_active(hf.get("exclude_fixer_upper_in_description"))
 
-    # School proximity hard filter (v1: Haversine proxy). Per-school
-    # thresholds: current school stricter (25 min) than future school (33),
-    # because future school is in Fornebu — naturally further from central Oslo
-    # where most candidate listings are.
+    # School proximity hard filter (v1: Haversine proxy). Two-stage:
+    #   1. Future-school HARD CAP — universal, always required.
+    #   2. OR — among listings within the cap, at least one of:
+    #      ≤current_max to current, ≤future_max to future, ≤both_max to both.
     school_cfg = hf.get("school_proximity", {}) or {}
     school_active = bool(school_cfg.get("active"))
+    future_hard_cap = school_cfg.get("future_school_hard_cap_minutes")
     cur_max = school_cfg.get(
         "current_school_max_minutes",
-        # Fall back to legacy single-threshold key if present, then default.
+        # Legacy single-key fallback; default 25.
         school_cfg.get("one_school_max_minutes", 25),
     )
     nxt_max = school_cfg.get(
         "future_school_max_minutes",
-        school_cfg.get("one_school_max_minutes", 33),
+        school_cfg.get("one_school_max_minutes", 25),
     )
     both_max = school_cfg.get("both_schools_max_minutes", 30)
     school_coords = config.get("location", {}).get("schools", {})
@@ -211,16 +212,24 @@ def apply_hard_filters(
             else:
                 cur_min = proxy_transit_minutes(haversine_km(coords, cur_coords))
                 nxt_min = proxy_transit_minutes(haversine_km(coords, nxt_coords))
-                near_current = cur_min <= cur_max
-                near_future = nxt_min <= nxt_max
-                in_between = cur_min <= both_max and nxt_min <= both_max
-                if not (near_current or near_future or in_between):
+                # 1. Future-school hard cap (always required if configured).
+                if future_hard_cap is not None and nxt_min > future_hard_cap:
                     result.failed.append(
-                        f"school proximity: {cur_min:.0f} min to current, "
-                        f"{nxt_min:.0f} min to future "
-                        f"(need ≤{cur_max} current OR ≤{nxt_max} future "
-                        f"OR ≤{both_max} both)"
+                        f"future-school commute {nxt_min:.0f} min "
+                        f"> hard cap {future_hard_cap} min"
                     )
+                else:
+                    # 2. OR — at least one path qualifies.
+                    near_current = cur_min <= cur_max
+                    near_future = nxt_min <= nxt_max
+                    in_between = cur_min <= both_max and nxt_min <= both_max
+                    if not (near_current or near_future or in_between):
+                        result.failed.append(
+                            f"school proximity: {cur_min:.0f} min current, "
+                            f"{nxt_min:.0f} min future "
+                            f"(need ≤{cur_max} current OR ≤{nxt_max} future "
+                            f"OR ≤{both_max} both)"
+                        )
 
         # Detail-page filters. Each requires the listing to be enriched. If
         # the corresponding field is absent, the filter goes to ⚠️ unverified.

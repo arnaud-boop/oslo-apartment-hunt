@@ -21,14 +21,23 @@ hard_filters:
   # School proximity (non-negotiable). Coordinates pulled from `location.schools`.
   # v1 uses Haversine × 10 km/h as a transit proxy — replaced with real Entur
   # transit times in v1.x. Calibration: Bolteløkka → Fornebu (Snarøyveien 30)
-  # is 33 min real / 35 min proxy — proxy is mildly pessimistic for medium
-  # routes, so using the same number for the proxy threshold as the real-world
-  # cap is slightly conservative but acceptable.
+  # = 33 min real / 35 min proxy — close enough.
+  #
+  # Two-stage filter:
+  #   1. HARD CAP — future school must always be ≤33 min. Listings beyond
+  #      this are rejected regardless of how close they are to the current
+  #      school. This is the "we won't spend more than 33 min commuting to
+  #      future school, ever" rule.
+  #   2. OR — among listings under the cap, at least one of:
+  #        - ≤25 min to current school (Skovveien 9)
+  #        - ≤25 min to future school (Snarøyveien 30)
+  #        - ≤30 min to BOTH (in-between)
   school_proximity:
     active: true
-    current_school_max_minutes: 25   # ≤25 min proxy to Skovveien 9 = pass
-    future_school_max_minutes: 33    # ≤33 min proxy to Snarøyveien 30 = pass
-    both_schools_max_minutes: 30     # OR ≤30 min proxy to BOTH (in-between)
+    future_school_hard_cap_minutes: 33   # universal cap; listings beyond fail
+    current_school_max_minutes: 25       # OR ≤25 to current
+    future_school_max_minutes: 25        # OR ≤25 to future
+    both_schools_max_minutes: 30         # OR ≤30 to both (in-between)
 
   # --- v1.0.5: requires detail-page fetch ---
 
@@ -108,7 +117,7 @@ location:
       name: "French school (from Sept 2028)"
       address: "Snarøyveien 30, Fornebu"
       coordinates: { lat: 59.89961175558525, lon: 10.627580028343047 }
-      good_threshold_minutes: 33                    # real-transit calibrated
+      good_threshold_minutes: 25                    # for tag display only
     in_between_threshold_minutes: 30                # ≤30 min to BOTH = ⚖️
 
   # Wife's commute (scored).
