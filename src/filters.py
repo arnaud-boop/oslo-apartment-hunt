@@ -95,6 +95,28 @@ def _value_of(cfg_entry):
     return cfg_entry
 
 
+# Greater Oslo region bounding box. Listings outside it are tagged as
+# bad-data and dropped — without sane coords we can't apply commute / school
+# filters, and the listing is almost certainly mis-geocoded by Finn (we've
+# seen 6725 km Haversine distances from null-island sentinel coords).
+# Box is generous: covers Asker, Bærum, central Oslo, Lørenskog, Nittedal.
+OSLO_BBOX = {"lat_min": 59.5, "lat_max": 60.3, "lon_min": 10.0, "lon_max": 11.5}
+
+
+def _coords_valid_for_oslo(coords) -> bool:
+    if not isinstance(coords, dict):
+        return False
+    try:
+        lat = float(coords["lat"])
+        lon = float(coords["lon"])
+    except (KeyError, TypeError, ValueError):
+        return False
+    return (
+        OSLO_BBOX["lat_min"] <= lat <= OSLO_BBOX["lat_max"]
+        and OSLO_BBOX["lon_min"] <= lon <= OSLO_BBOX["lon_max"]
+    )
+
+
 # ----------------------------------------------------------------------------
 
 
@@ -200,6 +222,14 @@ def apply_hard_filters(
             if not coords or "lat" not in coords or "lon" not in coords:
                 result.unverified.append(
                     "could not verify location caps (no coords)"
+                )
+            elif not _coords_valid_for_oslo(coords):
+                # Bogus coordinates (likely null-island sentinel or lat/lon
+                # swap from Finn). We can't trust this listing's location at
+                # all — drop rather than let it slip past as unverified.
+                result.failed.append(
+                    f"invalid coordinates ({coords.get('lat')}, "
+                    f"{coords.get('lon')}) — outside Greater Oslo region"
                 )
             else:
                 # Each cap is independent and AND-combined.
