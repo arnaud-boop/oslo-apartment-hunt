@@ -38,7 +38,7 @@ from typing import Any
 
 import yaml
 
-from src.scorer import haversine_km, proxy_transit_minutes
+from src.routing import commute_minutes
 
 logger = logging.getLogger(__name__)
 
@@ -232,24 +232,23 @@ def apply_hard_filters(
                     f"{coords.get('lon')}) — outside Greater Oslo region"
                 )
             else:
-                # Each cap is independent and AND-combined.
+                # Each cap is independent and AND-combined. commute_minutes
+                # uses real Entur transit data with Haversine fallback.
                 if cur_coords and cur_cap is not None:
-                    cur_min = proxy_transit_minutes(haversine_km(coords, cur_coords))
-                    if cur_min > cur_cap:
+                    cur_min = commute_minutes(coords, cur_coords)
+                    if cur_min is not None and cur_min > cur_cap:
                         result.failed.append(
                             f"current school {cur_min:.0f} min > {cur_cap} cap"
                         )
                 if nxt_coords and nxt_cap is not None:
-                    nxt_min = proxy_transit_minutes(haversine_km(coords, nxt_coords))
-                    if nxt_min > nxt_cap:
+                    nxt_min = commute_minutes(coords, nxt_coords)
+                    if nxt_min is not None and nxt_min > nxt_cap:
                         result.failed.append(
                             f"future school {nxt_min:.0f} min > {nxt_cap} cap"
                         )
                 if wife_coords and wife_cap is not None:
-                    wife_min = proxy_transit_minutes(
-                        haversine_km(coords, wife_coords)
-                    )
-                    if wife_min > wife_cap:
+                    wife_min = commute_minutes(coords, wife_coords)
+                    if wife_min is not None and wife_min > wife_cap:
                         result.failed.append(
                             f"wife's commute {wife_min:.0f} min > {wife_cap} cap"
                         )

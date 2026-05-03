@@ -20,12 +20,9 @@ hard_filters:
 
   # Location caps — three independent hard filters, AND-combined.
   # A listing passes only if it satisfies ALL three.
-  # v1 uses Haversine × 10 km/h as a transit proxy — replaced with real Entur
-  # transit times in v1.x. Calibrations seen so far:
-  #   Bolteløkka → Skovveien 9   :  ~5 min proxy / ~12-15 min real walk
-  #   Bolteløkka → Snarøyveien 30: ~35 min proxy / ~33 min real transit
-  #   Bolteløkka → Helsfyr       : ~18 min proxy / ~25 min real transit
-  # Proxy varies by route; real Entur in v1.x will normalize this.
+  # Times are now from real public-transit routing (Entur API), with a
+  # Haversine × 10 km/h fallback if the API is unreachable. Cap values are
+  # in real minutes.
   location_caps:
     active: true
     current_school_max_minutes: 25     # ≤25 to Skovveien 9 (current school)

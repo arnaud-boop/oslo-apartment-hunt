@@ -35,7 +35,6 @@ from __future__ import annotations
 
 import json
 import logging
-import math
 import statistics
 import sys
 from dataclasses import asdict, dataclass, field
@@ -45,12 +44,14 @@ from typing import Any
 
 import yaml
 
-logger = logging.getLogger(__name__)
+# Real public-transport routing with a Haversine proxy fallback.
+from src.routing import (
+    commute_minutes,
+    haversine_km,
+    proxy_transit_minutes,
+)
 
-# Walking-and-transit hybrid proxy: 10 km/h means a 3-km commute → 18 min,
-# a 5-km one → 30 min. Calibrated against Bolteløkka → Helsfyr (~3 km / 25 min
-# real). Replaced with real Entur routing in a later milestone.
-KMH_PROXY = 10.0
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------- types ----
@@ -81,23 +82,6 @@ class ScoredListing:
         return d
 
 
-# ------------------------------------------------------------- helpers ----
-
-
-def haversine_km(a: dict, b: dict) -> float:
-    """Great-circle distance in km between two {lat, lon} dicts."""
-    lat1, lon1 = math.radians(a["lat"]), math.radians(a["lon"])
-    lat2, lon2 = math.radians(b["lat"]), math.radians(b["lon"])
-    dlat = lat2 - lat1
-    dlon = lon2 - lon1
-    h = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
-    return 6371.0 * 2 * math.asin(math.sqrt(h))
-
-
-def proxy_transit_minutes(km: float) -> float:
-    return km / KMH_PROXY * 60.0
-
-
 # ----------------------------------------------------------- sub-scores ----
 
 
@@ -107,8 +91,10 @@ def score_commute_wife(listing: dict, config: dict) -> SubScore | None:
         return None
     cw = config["location"]["commute_wife"]
     dest = cw["coordinates"]
+    minutes = commute_minutes(coords, dest)
+    if minutes is None:
+        return None
     km = haversine_km(coords, dest)
-    minutes = proxy_transit_minutes(km)
 
     full_max = cw["full_score_max_minutes"]
     partial_max = cw["partial_score_max_minutes"]
@@ -129,7 +115,7 @@ def score_commute_wife(listing: dict, config: dict) -> SubScore | None:
         name="commute_wife",
         value=round(value, 1),
         weight=weight,
-        detail=f"~{minutes:.0f} min to Helsfyr ({km:.1f} km, walking+transit proxy)",
+        detail=f"~{minutes:.0f} min to Helsfyr ({km:.1f} km)",
     )
 
 
@@ -188,8 +174,10 @@ def assign_school_tags(listing: dict, config: dict) -> list[str]:
     schools = config["location"]["schools"]
     cur = schools["current"]
     nxt = schools["next"]
-    cur_min = proxy_transit_minutes(haversine_km(coords, cur["coordinates"]))
-    nxt_min = proxy_transit_minutes(haversine_km(coords, nxt["coordinates"]))
+    cur_min = commute_minutes(coords, cur["coordinates"])
+    nxt_min = commute_minutes(coords, nxt["coordinates"])
+    if cur_min is None or nxt_min is None:
+        return []
     cur_thresh = cur["good_threshold_minutes"]
     nxt_thresh = nxt["good_threshold_minutes"]
     in_between_thresh = schools["in_between_threshold_minutes"]
@@ -334,20 +322,26 @@ def score_listing(
     nxt_school = schools.get("next") or {}
     if coords and cur_school.get("coordinates"):
         km = haversine_km(coords, cur_school["coordinates"])
-        details[f"→ Current school ({cur_school.get('address','')})"] = (
-            f"~{proxy_transit_minutes(km):.0f} min · {km:.1f} km"
-        )
+        mins = commute_minutes(coords, cur_school["coordinates"])
+        if mins is not None:
+            details[f"→ Current school ({cur_school.get('address','')})"] = (
+                f"~{mins:.0f} min · {km:.1f} km"
+            )
     if coords and nxt_school.get("coordinates"):
         km = haversine_km(coords, nxt_school["coordinates"])
-        details[f"→ Future school ({nxt_school.get('address','')})"] = (
-            f"~{proxy_transit_minutes(km):.0f} min · {km:.1f} km"
-        )
+        mins = commute_minutes(coords, nxt_school["coordinates"])
+        if mins is not None:
+            details[f"→ Future school ({nxt_school.get('address','')})"] = (
+                f"~{mins:.0f} min · {km:.1f} km"
+            )
     cw = config.get("location", {}).get("commute_wife", {})
     if coords and cw.get("coordinates"):
         km = haversine_km(coords, cw["coordinates"])
-        details[f"→ Wife's commute ({cw.get('destination','')})"] = (
-            f"~{proxy_transit_minutes(km):.0f} min · {km:.1f} km"
-        )
+        mins = commute_minutes(coords, cw["coordinates"])
+        if mins is not None:
+            details[f"→ Wife's commute ({cw.get('destination','')})"] = (
+                f"~{mins:.0f} min · {km:.1f} km"
+            )
     if listing.get("area_m2") and listing.get("total_price"):
         ppm = listing["total_price"] / listing["area_m2"]
         details["Price per m²"] = f"{ppm:,.0f} NOK"
