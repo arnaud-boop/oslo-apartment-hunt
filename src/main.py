@@ -144,7 +144,11 @@ def main() -> int:
         }
         for r in kept_p2
     ]
-    scored = score_listings(kept_p2_dicts, config)
+    # Pass the full scrape as the neighborhood-median baseline — gives a
+    # denser geographic surface than the ~tens of post-filter survivors.
+    scored = score_listings(
+        kept_p2_dicts, config, baseline_listings=listings_dicts
+    )
     _save_json(
         data_dir / "scored_latest.json",
         [s.to_dict() for s in scored],

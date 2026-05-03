@@ -122,34 +122,42 @@ def score_commute_wife(listing: dict, config: dict) -> SubScore | None:
 def score_price_per_m2(
     listing: dict, config: dict, dataset_stats: dict
 ) -> SubScore | None:
-    """Soft tiebreaker only.
+    """Compare listing price/m² to its neighborhood baseline.
 
-    v1 uses the *global* dataset median, which over-rewards distant suburbs
-    where prices/m² are structurally lower regardless of fit. To keep this
-    from dominating the ranking, the value is capped to 50 ± 15 (range
-    35-65) — meaning price/m² nudges the final score by at most a few
-    points, never drives it. v1.x replaces the global median with a
-    neighborhood-aware baseline and we can widen the range then.
+    v1.x: per-listing local median computed via K-nearest-neighbors over
+    the broader scrape baseline. Falls back to the global median when no
+    local median is available (no coords or too few neighbors).
+
+    Score range: 0-100 linear over ±30% deviation from local median.
+    No cap — the suburb-bias problem is solved by comparing apples to
+    apples within neighborhoods.
     """
     area = listing.get("area_m2")
     total = listing.get("total_price")
     if not area or not total:
         return None
     ppm = total / area
-    median_ppm = dataset_stats.get("median_ppm")
+
+    # Prefer per-listing local median, fall back to global.
+    local_medians = dataset_stats.get("local_medians") or {}
+    finn_id = listing.get("finn_id")
+    local_median = local_medians.get(finn_id)
+    used_local = local_median is not None
+    median_ppm = local_median if used_local else dataset_stats.get("median_ppm")
     if not median_ppm:
         return None
+
     pct_diff = (ppm - median_ppm) / median_ppm * 100.0
-    # 0% diff = 50.  Cap deviation to ±15 over the range ±30%.
-    raw = -pct_diff * (15.0 / 30.0)
-    value = max(35.0, min(65.0, 50.0 + raw))
+    # 0% diff = 50.  -30% = 100. +30% = 0. Clamped to [0, 100].
+    value = max(0.0, min(100.0, 50.0 - pct_diff * (50.0 / 30.0)))
     weight = float(config["weights"]["financials"])
     sign = "+" if pct_diff >= 0 else ""
+    baseline_label = "neighborhood median" if used_local else "Oslo dataset median"
     return SubScore(
         name="price_per_m2",
         value=round(value, 1),
         weight=weight,
-        detail=f"{ppm:,.0f} NOK/m² ({sign}{pct_diff:.0f}% vs dataset median, capped ±15)",
+        detail=f"{ppm:,.0f} NOK/m² ({sign}{pct_diff:.0f}% vs {baseline_label})",
     )
 
 
@@ -222,21 +230,76 @@ def assign_unverified_tag(unverified: list[str]) -> str | None:
 # ---------------------------------------------------- dataset statistics ----
 
 
-def compute_dataset_stats(listings: list[dict]) -> dict:
-    """Aggregate stats used by relative scoring (price/m² median, etc.)."""
-    ppm = []
+def compute_dataset_stats(
+    listings: list[dict],
+    baseline_listings: list[dict] | None = None,
+    k_nearest: int = 15,
+) -> dict:
+    """Aggregate stats used by relative scoring.
+
+    Computes:
+      - Global median price/m² over the baseline (fallback baseline).
+      - Per-listing local median price/m² via K-nearest-neighbors over the
+        baseline. Indexed by finn_id.
+
+    `baseline_listings` should ideally be the broader scraped set (~hundreds
+    of listings), giving a denser geographic surface than the post-filter
+    survivors alone. Defaults to `listings` if not provided.
+    """
+    if baseline_listings is None:
+        baseline_listings = listings
+
+    # Pre-extract baseline coords + ppm (skip listings with bad data).
+    baseline: list[tuple[str, float, float, float]] = []  # (finn_id, lat, lon, ppm)
+    for b in baseline_listings:
+        coords = b.get("coordinates") or {}
+        a = b.get("area_m2")
+        t = b.get("total_price")
+        if (
+            isinstance(a, (int, float)) and a > 0
+            and isinstance(t, (int, float)) and t > 0
+            and "lat" in coords and "lon" in coords
+            and isinstance(coords["lat"], (int, float))
+            and isinstance(coords["lon"], (int, float))
+        ):
+            baseline.append((str(b.get("finn_id") or ""), coords["lat"], coords["lon"], t / a))
+
+    all_ppm = [ppm for _, _, _, ppm in baseline]
+    if not all_ppm:
+        return {"median_ppm": None, "local_medians": {}, "n": 0}
+
+    global_median = statistics.median(all_ppm)
+
+    # Per-listing local medians (K-nearest neighbours by Haversine).
+    local_medians: dict[str, float] = {}
     for l in listings:
-        a = l.get("area_m2")
-        t = l.get("total_price")
-        if a and t and a > 0:
-            ppm.append(t / a)
-    if not ppm:
-        return {"median_ppm": None}
+        finn_id = str(l.get("finn_id") or "")
+        coords = l.get("coordinates")
+        if not coords or "lat" not in coords or "lon" not in coords:
+            continue
+        if not finn_id:
+            continue
+        # Distance to every baseline listing (excluding self).
+        distances = []
+        for b_id, b_lat, b_lon, b_ppm in baseline:
+            if b_id == finn_id:
+                continue
+            d = haversine_km(coords, {"lat": b_lat, "lon": b_lon})
+            distances.append((d, b_ppm))
+        if len(distances) < 3:
+            # Too few peers for a meaningful local median.
+            continue
+        distances.sort(key=lambda x: x[0])
+        nearest_ppms = [ppm for _, ppm in distances[:k_nearest]]
+        local_medians[finn_id] = statistics.median(nearest_ppms)
+
     return {
-        "median_ppm": statistics.median(ppm),
-        "n": len(ppm),
-        "min_ppm": min(ppm),
-        "max_ppm": max(ppm),
+        "median_ppm": global_median,
+        "n": len(all_ppm),
+        "min_ppm": min(all_ppm),
+        "max_ppm": max(all_ppm),
+        "local_medians": local_medians,
+        "k_nearest": k_nearest,
     }
 
 
@@ -368,17 +431,36 @@ def score_listing(
 
 
 def score_listings(
-    filter_results: list[dict], config: dict, now: datetime | None = None
+    filter_results: list[dict],
+    config: dict,
+    now: datetime | None = None,
+    baseline_listings: list[dict] | None = None,
 ) -> list[ScoredListing]:
+    """Score and rank kept listings.
+
+    `baseline_listings` is the broader scraped set used to compute
+    neighborhood-aware price/m² medians. Pass the full scrape (post-`scrape`,
+    pre-filter) for best coverage.
+    """
     if now is None:
         now = datetime.now(timezone.utc)
     listings = [r["listing"] for r in filter_results]
-    stats = compute_dataset_stats(listings)
+
+    k = int(
+        config.get("financials", {})
+        .get("price_per_m2", {})
+        .get("neighborhood_k_nearest", 15)
+    )
+    stats = compute_dataset_stats(listings, baseline_listings, k_nearest=k)
     if stats.get("median_ppm"):
         logger.info(
-            "Dataset stats: n=%d, median_ppm=%.0f NOK/m²",
+            "Dataset stats: baseline n=%d, global median=%.0f NOK/m², "
+            "local medians for %d/%d listings (K=%d)",
             stats["n"],
             stats["median_ppm"],
+            len(stats.get("local_medians") or {}),
+            len(listings),
+            stats.get("k_nearest", k),
         )
     out = [score_listing(r, config, stats, now) for r in filter_results]
     # Primary: score desc.

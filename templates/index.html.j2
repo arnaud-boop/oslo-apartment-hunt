@@ -21,7 +21,7 @@
     <summary>v1 scoring caveats — please read</summary>
     <ul>
       <li><strong>Hard filters applied:</strong> total ≤ 15M NOK, felleskostnader ≤ 7k/mo, area ≥ 90 m², ≥ 3 BR, no "oppussingsobjekt" in title, school proximity (≤ 25 min proxy to current OR next school, OR ≤ 30 min to both — non-negotiable).</li>
-      <li><strong>Active sub-scores:</strong> wife's commute (real public-transit time via Entur, falling back to a Haversine proxy if the API is unreachable) and price/m² vs dataset median (capped ±15 so it stays a tiebreaker, not a driver).</li>
+      <li><strong>Active sub-scores:</strong> wife's commute (real public-transit time via Entur, falling back to a Haversine proxy if the API is unreachable) and price/m² vs neighborhood median (K=15 nearest similar listings; full 0-100 range now that suburb bias is fixed).</li>
       <li><strong>Deferred to v1.0.5+:</strong> the apartment bucket (light, peis, ceiling, …), the building bucket, layout dealbreakers, sold/under-offer status, floor, bod, washing machine, real Entur transit times, neighborhood-aware pricing.</li>
       <li>Each card shows ⚠️ for unverified hard filters. Click the Finn link to verify before getting excited.</li>
     </ul>

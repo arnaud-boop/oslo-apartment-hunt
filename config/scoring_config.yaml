@@ -162,11 +162,13 @@ apartment:
 # ============================================================================
 financials:
   price_per_m2:
-    # v1: dataset median (rough; distorted by outliers but workable signal).
-    # v1.x: real neighborhood median.
-    bonus_per_pct_below_median: 0.5
-    penalty_per_pct_above_median: -0.5
-    cap: 15
+    # v1.x: per-listing neighborhood median via K-nearest-neighbors over the
+    # scraped baseline. K-NN compares listings to similar (≥3BR ≥90m²) peers
+    # in the same geographic area, eliminating the suburb-bias that capped
+    # us to ±15 in v1. Now scores use the full 0-100 range.
+    neighborhood_k_nearest: 15
+    # Score curve: 0% diff = 50, -30% = 100, +30% = 0, linear, clamped.
+    # No explicit cap key — clamping is implicit.
   fellesgjeld:
     high_threshold_nok: 1000000
     high_penalty: -3
