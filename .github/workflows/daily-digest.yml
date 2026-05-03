@@ -1,0 +1,83 @@
+name: Daily digest
+
+on:
+  # 05:00 UTC = 07:00 Oslo (CEST, summer) / 06:00 (CET, winter).
+  # The seasonal hour drift is a known v1 wart — fixable in v1.x with two
+  # cron lines or a smarter scheduler.
+  schedule:
+    - cron: "0 5 * * *"
+  # Manual one-click trigger from the Actions tab.
+  workflow_dispatch: {}
+
+# Pages deployment requires these. `contents: read` is enough since we don't
+# commit anything back to the repo.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Don't let two scheduled+manual runs overlap. Cancel-in-progress is off so
+# a manual run waits for an in-flight scheduled run instead of clobbering it.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # Persistent enrichment cache across runs. Each run saves under a unique
+      # key (run_id), and restores from the most recent `enrichment-` match.
+      # This means new daily runs only fetch detail pages for newly-appeared
+      # listings; existing ones are read from the restored cache.
+      - name: Restore enrichment cache
+        id: cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/
+          key: enrichment-${{ github.run_id }}
+          restore-keys: |
+            enrichment-
+
+      - name: Run pipeline
+        run: python -m src.main
+        env:
+          PYTHONUNBUFFERED: "1"
+
+      - name: Save enrichment cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .cache/
+          key: enrichment-${{ github.run_id }}
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist/
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

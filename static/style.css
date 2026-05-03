@@ -1,0 +1,355 @@
+/* Oslo Apartment Hunt — digest stylesheet
+ * Vanilla CSS, mobile-first, system font stack, dark-mode aware.
+ */
+
+:root {
+  --fg: #1a1a1a;
+  --fg-muted: #555;
+  --fg-faint: #888;
+  --bg: #fafafa;
+  --bg-card: #fff;
+  --border: #e3e3e3;
+  --border-strong: #c8c8c8;
+  --accent: #0064cc;
+  --accent-hover: #003f80;
+  --score-high: #2e7d32;
+  --score-mid: #c98800;
+  --score-low: #b03030;
+  --tag-bg: #eef2f7;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fg: #ececec;
+    --fg-muted: #aaa;
+    --fg-faint: #777;
+    --bg: #18191b;
+    --bg-card: #25272a;
+    --border: #383a3e;
+    --border-strong: #4a4d52;
+    --accent: #7eb8ff;
+    --accent-hover: #aed1ff;
+    --score-high: #6dc875;
+    --score-mid: #f0b75e;
+    --score-low: #e07474;
+    --tag-bg: #2f3338;
+  }
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  line-height: 1.5;
+}
+
+a { color: var(--accent); }
+a:hover { color: var(--accent-hover); }
+
+/* ----- page header ----- */
+
+.page-header {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 1rem;
+}
+.page-header h1 {
+  margin: 0;
+  font-size: 1.6rem;
+  letter-spacing: -0.02em;
+}
+.page-header .meta {
+  margin: 0.25rem 0 0.75rem;
+  color: var(--fg-muted);
+  font-size: 0.92rem;
+}
+
+.caveats {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-card);
+  font-size: 0.88rem;
+}
+.caveats summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--fg-muted);
+}
+.caveats[open] summary { margin-bottom: 0.5rem; }
+.caveats ul { margin: 0; padding-left: 1.2rem; }
+.caveats li { margin: 0.25rem 0; color: var(--fg-muted); }
+
+/* ----- listings layout ----- */
+
+.listings {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* ----- listing card ----- */
+
+.listing-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+@media (min-width: 720px) {
+  .listing-card {
+    flex-direction: row;
+  }
+  .card-photo { width: 280px; flex-shrink: 0; }
+  .card-photo img { aspect-ratio: 4/3; height: 100%; }
+}
+
+.card-photo {
+  background: var(--border);
+  position: relative;
+  aspect-ratio: 4/3;
+}
+.card-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.no-photo {
+  width: 100%; height: 100%;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--fg-faint);
+  font-size: 0.85rem;
+}
+
+.card-body {
+  padding: 0.85rem 1rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.card-header {
+  display: flex;
+  gap: 0.85rem;
+  align-items: flex-start;
+}
+
+.score-badge {
+  flex-shrink: 0;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 700;
+  line-height: 1;
+  background: var(--score-mid);
+}
+.score-badge.tier-high { background: var(--score-high); }
+.score-badge.tier-low  { background: var(--score-low); }
+.score-num { font-size: 1.25rem; }
+.score-out-of { font-size: 0.6rem; opacity: 0.85; margin-top: 0.1rem; }
+
+.card-title-block { min-width: 0; flex: 1; }
+.card-title-block h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.card-title-block h2 a {
+  color: var(--fg);
+  text-decoration: none;
+}
+.card-title-block h2 a:hover { color: var(--accent); }
+
+.card-address {
+  margin: 0.15rem 0 0;
+  font-size: 0.88rem;
+  color: var(--fg-muted);
+}
+.local-area { color: var(--fg-faint); }
+.card-type {
+  margin: 0.15rem 0 0;
+  font-size: 0.82rem;
+  color: var(--fg-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ----- stats row ----- */
+
+.card-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(85px, 1fr));
+  gap: 0.4rem 0.6rem;
+  font-size: 0.85rem;
+}
+.stat { display: flex; flex-direction: column; }
+.stat-label {
+  color: var(--fg-faint);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.stat-value {
+  color: var(--fg);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ----- tags ----- */
+
+.card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.tag {
+  background: var(--tag-bg);
+  border-radius: 999px;
+  padding: 0.15rem 0.55rem;
+  font-size: 0.8rem;
+  color: var(--fg-muted);
+  white-space: nowrap;
+}
+
+/* ----- sub-scores ----- */
+
+.card-subscores {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+}
+.subscore {
+  display: grid;
+  grid-template-columns: 110px 80px 32px 1fr;
+  gap: 0.5rem;
+  align-items: center;
+}
+.subscore-name {
+  color: var(--fg-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+}
+.subscore-bar {
+  background: var(--border);
+  border-radius: 999px;
+  height: 7px;
+  overflow: hidden;
+  position: relative;
+}
+.subscore-bar-fill {
+  background: var(--accent);
+  height: 100%;
+  display: block;
+}
+.subscore-value {
+  font-weight: 600;
+  text-align: right;
+}
+.subscore-detail {
+  color: var(--fg-faint);
+  font-size: 0.78rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@media (max-width: 540px) {
+  .subscore {
+    grid-template-columns: 100px 1fr 32px;
+  }
+  .subscore-detail { grid-column: 1 / -1; padding-left: 100px; }
+}
+
+.card-headline {
+  margin: 0;
+  color: var(--fg-muted);
+  font-size: 0.88rem;
+  font-style: italic;
+}
+
+.card-visning {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--fg-muted);
+}
+
+.card-details {
+  font-size: 0.85rem;
+  border-left: 3px solid var(--accent);
+  padding: 0.3rem 0.6rem;
+}
+.card-details summary {
+  cursor: pointer;
+  color: var(--fg-muted);
+  font-weight: 500;
+}
+.card-details dl {
+  margin: 0.4rem 0 0;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.15rem 0.75rem;
+  font-size: 0.82rem;
+}
+.card-details dt {
+  color: var(--fg-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.card-details dd {
+  margin: 0;
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+
+.card-unverified {
+  border-left: 3px solid var(--border-strong);
+  padding: 0.4rem 0.6rem;
+  font-size: 0.85rem;
+}
+.card-unverified summary {
+  cursor: pointer;
+  color: var(--fg-muted);
+  font-weight: 500;
+}
+.card-unverified ul {
+  margin: 0.3rem 0 0;
+  padding-left: 1.2rem;
+  color: var(--fg-faint);
+}
+
+.card-link {
+  margin: 0;
+  font-size: 0.88rem;
+}
+
+/* ----- footer ----- */
+
+.page-footer {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 1rem;
+  text-align: center;
+  color: var(--fg-faint);
+  font-size: 0.82rem;
+}

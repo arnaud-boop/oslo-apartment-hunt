@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+
+# OS / editor temp files
+.DS_Store
+~$*
+
+# Personal knowledge files — public repo, keep these local only.
+# Code reads them from disk at runtime; not needed in CI for v1.
+liked-listings.md
+disliked-listings.md
+wife-feedback.md
+viewing-notes.md
+household-context.md
+github-repo.txt
+
+# Local-only generated output (Pages-from-Actions deploys, doesn't commit)
+dist/
+
+# Cached scraper responses for offline dev — persisted across CI runs via
+# actions/cache rather than committed to git.
+.cache/
+
+# Pipeline-generated data files. Regenerated on every run; not source.
+data/

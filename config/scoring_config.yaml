@@ -1,0 +1,185 @@
+# Oslo Apartment Hunt — scoring & filter configuration.
+# Hand-edit freely. Sections marked `active: false` are written out but not
+# yet applied — usually because they need detail-page enrichment (v1.0.5)
+# or LLM analysis (v1.1).
+
+# ============================================================================
+# Hard filters — listings outside these ranges are EXCLUDED from the digest.
+# ============================================================================
+hard_filters:
+
+  # --- v1: applied from search-results data ---
+
+  total_price_max_nok: 15000000
+  fellesutgifter_max_nok_per_month: 7000
+  area_min_m2: 90
+  bedrooms_min: 3
+  exclude_oppussingsobjekt_in_title: true   # catches both "oppussingsobjekt" and
+                                            # "renoveringsobjekt"; description-only
+                                            # mentions caught in v1.0.5.
+
+  # School proximity (non-negotiable). Coordinates pulled from `location.schools`.
+  # v1 uses Haversine × 10 km/h as a transit proxy — pessimistic, will be
+  # replaced with real Entur transit times in v1.x.
+  school_proximity:
+    active: true
+    one_school_max_minutes: 25     # ≤25 min to current OR next school passes
+    both_schools_max_minutes: 30   # OR ≤30 min to BOTH (in-between)
+
+  # --- v1.0.5: requires detail-page fetch ---
+
+  # Activated (high-confidence extraction):
+  exclude_ground_floor:
+    value: true                  # excludes floor == 1 (1. etasje = ground)
+    active: true
+  elevator_required_at_or_above_floor:
+    value: 4                     # 4. etasje and up = elevator required
+    active: true
+  exclude_sold_or_under_offer:
+    value: true                  # excludes ad.disposed == true
+    active: true
+  exclude_fixer_upper_in_description:
+    value: true                  # full-description scan for the keywords above
+    active: true
+
+  # Still deferred — text-based, fuzzy, kept as ⚠️ unverified for now:
+  bedroom_min_m2:
+    value: 7
+    active: false
+  wet_rooms_min:
+    value: 3                     # 2 bath + 1 toilet
+    active: false
+  storage_bod_required:
+    value: true
+    active: false                # we extract has_bod_evidence but it's heuristic
+  washing_machine_required:
+    value: true
+    active: false                # same — keyword-based, not in structured data
+
+  # --- v1.1: requires LLM analysis ---
+
+  exclude_north_facing_main_rooms:
+    value: true
+    active: false
+  exclude_layout_dealbreakers:
+    # narrow hallways, gjennomgangsrom, kitchen no window, bath off kitchen
+    value: true
+    active: false
+
+  # --- v1.x: requires routing (Entur / OSM) ---
+
+  grocery_within_walk_minutes:
+    value: 10                    # Kiwi/Coop/Meny/Rema/Bunnpris ≤ 10 min walk
+    active: false
+
+
+# ============================================================================
+# Bucket weights (must sum to 100)
+# ============================================================================
+weights:
+  location_and_commute: 30
+  apartment: 35
+  financials: 20
+  building: 15
+
+
+# ============================================================================
+# Location & commute (30%)
+# ============================================================================
+location:
+
+  # Reference point: current home, for "distance from current" info on cards.
+  current_home:
+    address: "Holmboes Gate 7B, Bolteløkka, Oslo"
+    coordinates: { lat: 59.9249232812681, lon: 10.719758197659349 }
+
+  # School zones — produce TAGS only, no score impact (per project spec).
+  schools:
+    current:
+      name: "French school (current, until Sept 2028)"
+      address: "Skovveien 9, Oslo"
+      coordinates: { lat: 59.91705266507946, lon: 10.717338097658788 }
+      good_threshold_minutes: 25
+    next:
+      name: "French school (from Sept 2028)"
+      address: "Snarøyveien 30, Fornebu"
+      coordinates: { lat: 59.89961175558525, lon: 10.627580028343047 }
+      good_threshold_minutes: 25
+    in_between_threshold_minutes: 30                # ≤30 min to BOTH = ⚖️
+
+  # Wife's commute (scored).
+  # v1: uses Haversine distance as a rough proxy. v1.x: real Entur transit.
+  commute_wife:
+    destination: "Freserveien 1, Oslo (Helsfyr)"
+    coordinates: { lat: 59.902834797322285, lon: 10.784423197657866 }
+    full_score_max_minutes: 40                      # ≤40 = full points
+    partial_score_max_minutes: 45                   # 40–45 = partial
+
+  # Quiet street (LLM-detected in v1.1).
+  noisy_streets:
+    active: false
+    penalty: -8
+    patterns: ["Ring 2", "Ring 3", "Kirkeveien", "Bogstadveien"]
+
+
+# ============================================================================
+# Apartment (35%) — almost everything here needs detail-page or LLM data.
+# Nothing in this section is scored in v1 yet.
+# ============================================================================
+apartment:
+  active_in_v1: false
+  outdoor_space:
+    balcony_or_terrace_bonus: 10
+    private_garden_bonus: 12
+    park_5min_walk_bonus: 5
+    bakgaard_or_park_required: true
+  light_orientation:
+    south_main_bonus: 8
+    west_main_bonus: 5
+  ceiling_height:
+    min_m: 2.7
+    bonus: 12
+  fireplace_peis_bonus: 10
+  bathtub_bonus: 4
+  open_plan_kitchen_bonus: 2
+  recent_renovation:
+    within_years: 5
+    bonus: 8
+  parking_bonus: 5
+  bike_storage_bonus: 3
+  heating:
+    collective_bonus: 4
+    individual_electric_penalty: -3
+  no_visavi_bonus: 5
+  clean_layout_bonus: 6
+
+
+# ============================================================================
+# Financials (20%)
+# ============================================================================
+financials:
+  price_per_m2:
+    # v1: dataset median (rough; distorted by outliers but workable signal).
+    # v1.x: real neighborhood median.
+    bonus_per_pct_below_median: 0.5
+    penalty_per_pct_above_median: -0.5
+    cap: 15
+  fellesgjeld:
+    high_threshold_nok: 1000000
+    high_penalty: -3
+
+
+# ============================================================================
+# Building (15%) — LLM-detected from description. Deferred.
+# ============================================================================
+building:
+  active_in_v1: false
+  family_friendly_bonus: 8
+
+
+# ============================================================================
+# Tags (no score impact, just labels in the digest)
+# ============================================================================
+tags:
+  visning_hot_within_hours: 48
+  flag_incomplete_data: true   # ⚠️ on cards we couldn't fully verify
