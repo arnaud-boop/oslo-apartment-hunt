@@ -18,26 +18,19 @@ hard_filters:
                                             # "renoveringsobjekt"; description-only
                                             # mentions caught in v1.0.5.
 
-  # School proximity (non-negotiable). Coordinates pulled from `location.schools`.
+  # Location caps — three independent hard filters, AND-combined.
+  # A listing passes only if it satisfies ALL three.
   # v1 uses Haversine × 10 km/h as a transit proxy — replaced with real Entur
-  # transit times in v1.x. Calibration: Bolteløkka → Fornebu (Snarøyveien 30)
-  # = 33 min real / 35 min proxy — close enough.
-  #
-  # Two-stage filter:
-  #   1. HARD CAP — future school must always be ≤33 min. Listings beyond
-  #      this are rejected regardless of how close they are to the current
-  #      school. This is the "we won't spend more than 33 min commuting to
-  #      future school, ever" rule.
-  #   2. OR — among listings under the cap, at least one of:
-  #        - ≤25 min to current school (Skovveien 9)
-  #        - ≤25 min to future school (Snarøyveien 30)
-  #        - ≤30 min to BOTH (in-between)
-  school_proximity:
+  # transit times in v1.x. Calibrations seen so far:
+  #   Bolteløkka → Skovveien 9   :  ~5 min proxy / ~12-15 min real walk
+  #   Bolteløkka → Snarøyveien 30: ~35 min proxy / ~33 min real transit
+  #   Bolteløkka → Helsfyr       : ~18 min proxy / ~25 min real transit
+  # Proxy varies by route; real Entur in v1.x will normalize this.
+  location_caps:
     active: true
-    future_school_hard_cap_minutes: 33   # universal cap; listings beyond fail
-    current_school_max_minutes: 25       # OR ≤25 to current
-    future_school_max_minutes: 25        # OR ≤25 to future
-    both_schools_max_minutes: 30         # OR ≤30 to both (in-between)
+    current_school_max_minutes: 25     # ≤25 to Skovveien 9 (current school)
+    future_school_max_minutes: 33      # ≤33 to Snarøyveien 30 (future school)
+    wife_commute_max_minutes: 45       # ≤45 to Freserveien 1 (wife's work)
 
   # --- v1.0.5: requires detail-page fetch ---
 

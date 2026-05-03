@@ -123,31 +123,23 @@ def apply_hard_filters(
     sold_filter_active = _is_active(hf.get("exclude_sold_or_under_offer"))
     fixer_desc_active = _is_active(hf.get("exclude_fixer_upper_in_description"))
 
-    # School proximity hard filter (v1: Haversine proxy). Two-stage:
-    #   1. Future-school HARD CAP — universal, always required.
-    #   2. OR — among listings within the cap, at least one of:
-    #      ≤current_max to current, ≤future_max to future, ≤both_max to both.
-    school_cfg = hf.get("school_proximity", {}) or {}
-    school_active = bool(school_cfg.get("active"))
-    future_hard_cap = school_cfg.get("future_school_hard_cap_minutes")
-    cur_max = school_cfg.get(
-        "current_school_max_minutes",
-        # Legacy single-key fallback; default 25.
-        school_cfg.get("one_school_max_minutes", 25),
-    )
-    nxt_max = school_cfg.get(
-        "future_school_max_minutes",
-        school_cfg.get("one_school_max_minutes", 25),
-    )
-    both_max = school_cfg.get("both_schools_max_minutes", 30)
+    # Three independent location caps, AND-combined. Each is a hard filter.
+    caps_cfg = hf.get("location_caps", {}) or {}
+    caps_active = bool(caps_cfg.get("active"))
+    cur_cap = caps_cfg.get("current_school_max_minutes")
+    nxt_cap = caps_cfg.get("future_school_max_minutes")
+    wife_cap = caps_cfg.get("wife_commute_max_minutes")
     school_coords = config.get("location", {}).get("schools", {})
     cur_coords = school_coords.get("current", {}).get("coordinates")
     nxt_coords = school_coords.get("next", {}).get("coordinates")
-    if school_active and (not cur_coords or not nxt_coords):
+    wife_coords = (config.get("location", {}).get("commute_wife", {}) or {}).get(
+        "coordinates"
+    )
+    if caps_active and not (cur_coords or nxt_coords or wife_coords):
         logger.warning(
-            "school_proximity.active=true but missing coordinates — disabling filter"
+            "location_caps.active=true but missing coordinates — disabling filter"
         )
-        school_active = False
+        caps_active = False
 
     # Deferred (inactive) rules → unverified flags, in a stable order.
     deferred_active_keys = [
@@ -203,32 +195,33 @@ def apply_hard_filters(
                 'title contains "oppussingsobjekt"/"renoveringsobjekt"'
             )
 
-        if school_active:
+        if caps_active:
             coords = _get_field(listing, "coordinates")
             if not coords or "lat" not in coords or "lon" not in coords:
                 result.unverified.append(
-                    "could not verify school proximity (no coords)"
+                    "could not verify location caps (no coords)"
                 )
             else:
-                cur_min = proxy_transit_minutes(haversine_km(coords, cur_coords))
-                nxt_min = proxy_transit_minutes(haversine_km(coords, nxt_coords))
-                # 1. Future-school hard cap (always required if configured).
-                if future_hard_cap is not None and nxt_min > future_hard_cap:
-                    result.failed.append(
-                        f"future-school commute {nxt_min:.0f} min "
-                        f"> hard cap {future_hard_cap} min"
-                    )
-                else:
-                    # 2. OR — at least one path qualifies.
-                    near_current = cur_min <= cur_max
-                    near_future = nxt_min <= nxt_max
-                    in_between = cur_min <= both_max and nxt_min <= both_max
-                    if not (near_current or near_future or in_between):
+                # Each cap is independent and AND-combined.
+                if cur_coords and cur_cap is not None:
+                    cur_min = proxy_transit_minutes(haversine_km(coords, cur_coords))
+                    if cur_min > cur_cap:
                         result.failed.append(
-                            f"school proximity: {cur_min:.0f} min current, "
-                            f"{nxt_min:.0f} min future "
-                            f"(need ≤{cur_max} current OR ≤{nxt_max} future "
-                            f"OR ≤{both_max} both)"
+                            f"current school {cur_min:.0f} min > {cur_cap} cap"
+                        )
+                if nxt_coords and nxt_cap is not None:
+                    nxt_min = proxy_transit_minutes(haversine_km(coords, nxt_coords))
+                    if nxt_min > nxt_cap:
+                        result.failed.append(
+                            f"future school {nxt_min:.0f} min > {nxt_cap} cap"
+                        )
+                if wife_coords and wife_cap is not None:
+                    wife_min = proxy_transit_minutes(
+                        haversine_km(coords, wife_coords)
+                    )
+                    if wife_min > wife_cap:
+                        result.failed.append(
+                            f"wife's commute {wife_min:.0f} min > {wife_cap} cap"
                         )
 
         # Detail-page filters. Each requires the listing to be enriched. If
