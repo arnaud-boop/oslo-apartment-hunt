@@ -123,10 +123,21 @@ def apply_hard_filters(
     sold_filter_active = _is_active(hf.get("exclude_sold_or_under_offer"))
     fixer_desc_active = _is_active(hf.get("exclude_fixer_upper_in_description"))
 
-    # School proximity hard filter (v1: Haversine proxy).
+    # School proximity hard filter (v1: Haversine proxy). Per-school
+    # thresholds: current school stricter (25 min) than future school (33),
+    # because future school is in Fornebu — naturally further from central Oslo
+    # where most candidate listings are.
     school_cfg = hf.get("school_proximity", {}) or {}
     school_active = bool(school_cfg.get("active"))
-    one_max = school_cfg.get("one_school_max_minutes", 25)
+    cur_max = school_cfg.get(
+        "current_school_max_minutes",
+        # Fall back to legacy single-threshold key if present, then default.
+        school_cfg.get("one_school_max_minutes", 25),
+    )
+    nxt_max = school_cfg.get(
+        "future_school_max_minutes",
+        school_cfg.get("one_school_max_minutes", 33),
+    )
     both_max = school_cfg.get("both_schools_max_minutes", 30)
     school_coords = config.get("location", {}).get("schools", {})
     cur_coords = school_coords.get("current", {}).get("coordinates")
@@ -200,13 +211,15 @@ def apply_hard_filters(
             else:
                 cur_min = proxy_transit_minutes(haversine_km(coords, cur_coords))
                 nxt_min = proxy_transit_minutes(haversine_km(coords, nxt_coords))
-                near_one = cur_min <= one_max or nxt_min <= one_max
+                near_current = cur_min <= cur_max
+                near_future = nxt_min <= nxt_max
                 in_between = cur_min <= both_max and nxt_min <= both_max
-                if not (near_one or in_between):
+                if not (near_current or near_future or in_between):
                     result.failed.append(
                         f"school proximity: {cur_min:.0f} min to current, "
-                        f"{nxt_min:.0f} min to next "
-                        f"(need ≤{one_max} to one or ≤{both_max} to both)"
+                        f"{nxt_min:.0f} min to future "
+                        f"(need ≤{cur_max} current OR ≤{nxt_max} future "
+                        f"OR ≤{both_max} both)"
                     )
 
         # Detail-page filters. Each requires the listing to be enriched. If

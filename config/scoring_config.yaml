@@ -19,12 +19,16 @@ hard_filters:
                                             # mentions caught in v1.0.5.
 
   # School proximity (non-negotiable). Coordinates pulled from `location.schools`.
-  # v1 uses Haversine × 10 km/h as a transit proxy — pessimistic, will be
-  # replaced with real Entur transit times in v1.x.
+  # v1 uses Haversine × 10 km/h as a transit proxy — replaced with real Entur
+  # transit times in v1.x. Calibration: Bolteløkka → Fornebu (Snarøyveien 30)
+  # is 33 min real / 35 min proxy — proxy is mildly pessimistic for medium
+  # routes, so using the same number for the proxy threshold as the real-world
+  # cap is slightly conservative but acceptable.
   school_proximity:
     active: true
-    one_school_max_minutes: 25     # ≤25 min to current OR next school passes
-    both_schools_max_minutes: 30   # OR ≤30 min to BOTH (in-between)
+    current_school_max_minutes: 25   # ≤25 min proxy to Skovveien 9 = pass
+    future_school_max_minutes: 33    # ≤33 min proxy to Snarøyveien 30 = pass
+    both_schools_max_minutes: 30     # OR ≤30 min proxy to BOTH (in-between)
 
   # --- v1.0.5: requires detail-page fetch ---
 
@@ -104,7 +108,7 @@ location:
       name: "French school (from Sept 2028)"
       address: "Snarøyveien 30, Fornebu"
       coordinates: { lat: 59.89961175558525, lon: 10.627580028343047 }
-      good_threshold_minutes: 25
+      good_threshold_minutes: 33                    # real-transit calibrated
     in_between_threshold_minutes: 30                # ≤30 min to BOTH = ⚖️
 
   # Wife's commute (scored).
