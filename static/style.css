@@ -185,6 +185,28 @@ a:hover { color: var(--accent-hover); }
   color: var(--fg-muted);
 }
 .local-area { color: var(--fg-faint); }
+
+/* Address links to Google Maps. Subtle styling so they read as text but are
+ * clearly clickable on hover. */
+.address-link {
+  color: var(--fg-muted);
+  text-decoration: none;
+  border-bottom: 1px dotted var(--border-strong);
+  transition: color 120ms, border-color 120ms;
+}
+.address-link:hover,
+.address-link:focus {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  border-bottom-style: solid;
+}
+.address-pin {
+  display: inline-block;
+  margin-right: 0.25rem;
+  font-size: 0.85em;
+  /* Drop the small bottom-border under the emoji itself */
+  border-bottom: none;
+}
 .card-type {
   margin: 0.15rem 0 0;
   font-size: 0.82rem;

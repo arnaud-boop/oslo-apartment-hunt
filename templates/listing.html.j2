@@ -68,7 +68,21 @@
     </div>
     <div class="eval-title-text">
       <h1>{{ l.title or '(no title)' }}</h1>
-      <p class="card-address">{{ l.address or '' }}{% if l.local_area %} · <span class="local-area">{{ l.local_area }}</span>{% endif %}</p>
+      <p class="card-address">
+        {% if l.address %}
+          {%- set lat = (l.coordinates or {}).get('lat') -%}
+          {%- set lon = (l.coordinates or {}).get('lon') -%}
+          {%- if lat is not none and lon is not none -%}
+            {%- set map_url = 'https://www.google.com/maps/search/?api=1&query=' ~ lat ~ ',' ~ lon -%}
+          {%- else -%}
+            {%- set map_url = 'https://www.google.com/maps/search/?api=1&query=' ~ (l.address | urlencode) -%}
+          {%- endif -%}
+          <a href="{{ map_url }}" target="_blank" rel="noopener" class="address-link" aria-label="Open address on Google Maps">
+            <span class="address-pin" aria-hidden="true">📍</span>{{ l.address }}
+          </a>
+        {% endif %}
+        {%- if l.local_area %} · <span class="local-area">{{ l.local_area }}</span>{% endif %}
+      </p>
       <p class="card-type">{{ l.property_type or '' }}{% if l.owner_type %} · {{ l.owner_type }}{% endif %}</p>
     </div>
   </section>
