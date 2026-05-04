@@ -220,6 +220,17 @@ def extract_enrichment(ad: dict) -> dict:
     out["property_type_detail"] = ad.get("propertyType")
     out["ownership_type_detail"] = ad.get("ownershipType")
 
+    # Selected generalText sections — useful context for LLM analysis.
+    # (Not all sections; the boring legal/admin ones are skipped.)
+    INTERESTING = {
+        "Standard", "Tilstand", "Beliggenhet / servicetilbud",
+        "Beskrivelse av bebyggelsen", "Oppvarming / Teknisk",
+        "Faste kostnader", "Adkomst", "Uteområde",
+        "Innbo og løsøre", "Parkering / Garasje",
+        "Sammendrag fra selgers egenerklæring",
+    }
+    out["general_text"] = {k: v for k, v in general.items() if k in INTERESTING and v}
+
     return out
 
 

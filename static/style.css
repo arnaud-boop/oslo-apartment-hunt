@@ -282,9 +282,34 @@ a:hover { color: var(--accent-hover); }
 
 .card-headline {
   margin: 0;
-  color: var(--fg-muted);
-  font-size: 0.88rem;
+  color: var(--fg);
+  font-size: 0.92rem;
   font-style: italic;
+  line-height: 1.4;
+  padding: 0.4rem 0.6rem;
+  border-left: 3px solid var(--accent);
+  background: var(--tag-bg);
+  border-radius: 4px;
+}
+
+.card-llm-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  color: var(--fg-muted);
+}
+.llm-flag {
+  background: var(--tag-bg);
+  border-radius: 999px;
+  padding: 0.1rem 0.45rem;
+  white-space: nowrap;
+}
+.llm-confidence {
+  margin-left: auto;
+  color: var(--fg-faint);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.72rem;
 }
 
 .card-visning {

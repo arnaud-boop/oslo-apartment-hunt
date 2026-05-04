@@ -21,8 +21,9 @@
     <summary>v1 scoring caveats — please read</summary>
     <ul>
       <li><strong>Hard filters applied:</strong> total ≤ 15M NOK, felleskostnader ≤ 7k/mo, area ≥ 90 m², ≥ 3 BR, no "oppussingsobjekt" in title, school proximity (≤ 25 min proxy to current OR next school, OR ≤ 30 min to both — non-negotiable).</li>
-      <li><strong>Active sub-scores:</strong> wife's commute (real public-transit time via Entur, falling back to a Haversine proxy if the API is unreachable) and price/m² vs neighborhood median (K=15 nearest similar listings; full 0-100 range now that suburb bias is fixed).</li>
-      <li><strong>Deferred to v1.0.5+:</strong> the apartment bucket (light, peis, ceiling, …), the building bucket, layout dealbreakers, sold/under-offer status, floor, bod, washing machine, real Entur transit times, neighborhood-aware pricing.</li>
+      <li><strong>Active sub-scores:</strong> wife's commute (real public-transit time via Entur, with Haversine fallback), price/m² vs neighborhood median (K=15 nearest similar listings, full 0-100 range), apartment bucket (LLM-detected light/orientation/ceiling/peis/bathtub/renovation/etc. + Finn facilities), and building bucket (family-friendly + quiet vs. busy street).</li>
+      <li><strong>LLM-detected facts</strong> on each card show what Claude pulled from the description. Hover/tap the confidence percentage if shown — low-confidence judgments shouldn't be over-trusted.</li>
+      <li><strong>Layout dealbreakers</strong> (long hallways, gjennomgangsrom, kitchen no window, bath off kitchen) are an LLM-driven hard filter that fires only when confidence ≥ 0.7. Listings dropped for this reason are gone from the digest entirely.</li>
       <li>Each card shows ⚠️ for unverified hard filters. Click the Finn link to verify before getting excited.</li>
     </ul>
   </details>
@@ -114,6 +115,29 @@
 
       {% if s.headline %}
       <p class="card-headline">{{ s.headline }}</p>
+      {% endif %}
+
+      {% set llm = l.llm if l.llm else None %}
+      {% if llm %}
+      <div class="card-llm-flags">
+        {%- set flags = [] -%}
+        {%- if llm.main_orientation in ('south','west') %}{% set _ = flags.append('☀️ ' + llm.main_orientation) %}{% endif -%}
+        {%- if llm.ceiling_height_high %}{% set _ = flags.append('high ceilings') %}{% endif -%}
+        {%- if llm.has_open_plan_kitchen %}{% set _ = flags.append('open-plan') %}{% endif -%}
+        {%- if llm.has_bakgaard %}{% set _ = flags.append('bakgård/garden') %}{% endif -%}
+        {%- if llm.has_bathtub %}{% set _ = flags.append('bathtub') %}{% endif -%}
+        {%- if llm.renovated_within_5_years %}{% set _ = flags.append('renovated <5y') %}{% endif -%}
+        {%- if llm.family_friendly %}{% set _ = flags.append('family-friendly') %}{% endif -%}
+        {%- if llm.has_visavi == false %}{% set _ = flags.append('no vis-à-vis') %}{% endif -%}
+        {%- if llm.layout_clean %}{% set _ = flags.append('clean layout') %}{% endif -%}
+        {%- if llm.heating_type == 'collective' %}{% set _ = flags.append('collective heat') %}{% endif -%}
+        {%- if llm.on_busy_street %}{% set _ = flags.append('⚠️ busy street') %}{% endif -%}
+        {%- if llm.has_visavi %}{% set _ = flags.append('⚠️ vis-à-vis') %}{% endif -%}
+        {% for flag in flags %}<span class="llm-flag">{{ flag }}</span>{% endfor %}
+        {% if llm.confidence is defined %}
+          <span class="llm-confidence" title="LLM analysis confidence">conf {{ '%.0f' % (llm.confidence * 100) }}%</span>
+        {% endif %}
+      </div>
       {% endif %}
 
       {% if l.viewing_times %}

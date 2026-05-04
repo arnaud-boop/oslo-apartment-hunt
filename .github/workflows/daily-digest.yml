@@ -55,6 +55,9 @@ jobs:
         run: python -m src.main
         env:
           PYTHONUNBUFFERED: "1"
+          # Optional. If unset, the LLM analysis pass is skipped (warning
+          # logged, pipeline continues with structured-data scoring only).
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 
       - name: Save enrichment cache
         if: always()

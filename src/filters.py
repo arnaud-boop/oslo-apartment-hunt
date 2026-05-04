@@ -74,8 +74,10 @@ DEFERRED_FILTER_LABELS = {
     "storage_bod_required":           "bod (storage room) present",
     "washing_machine_required":       "washing-machine connection",
     "exclude_north_facing_main_rooms":"main rooms not north-facing",
-    "exclude_layout_dealbreakers":    "no layout dealbreakers",
     "grocery_within_walk_minutes":    "grocery store ≤ 10 min walk",
+    # exclude_layout_dealbreakers is now active when LLM analysis runs;
+    # the active code path adds a per-listing unverified flag if the LLM
+    # call failed, so it's no longer here as a blanket deferred label.
 }
 
 
@@ -144,6 +146,15 @@ def apply_hard_filters(
     )
     sold_filter_active = _is_active(hf.get("exclude_sold_or_under_offer"))
     fixer_desc_active = _is_active(hf.get("exclude_fixer_upper_in_description"))
+
+    # LLM-based filter (only fires on listings that went through the LLM pass).
+    layout_dealbreaker_cfg = hf.get("exclude_layout_dealbreakers", {}) or {}
+    layout_dealbreaker_active = _is_active(layout_dealbreaker_cfg)
+    layout_dealbreaker_min_confidence = float(
+        layout_dealbreaker_cfg.get("min_confidence", 0.7)
+        if isinstance(layout_dealbreaker_cfg, dict)
+        else 0.7
+    )
 
     # Three independent location caps, AND-combined. Each is a hard filter.
     caps_cfg = hf.get("location_caps", {}) or {}
@@ -296,6 +307,21 @@ def apply_hard_filters(
                 result.failed.append(
                     'description contains "oppussingsobjekt"/"renoveringsobjekt"'
                 )
+
+        if layout_dealbreaker_active:
+            llm = _get_field(listing, "llm") or {}
+            if not llm:
+                result.unverified.append(
+                    "could not check layout dealbreakers (no LLM analysis)"
+                )
+            else:
+                dealbreaker = llm.get("layout_dealbreaker")
+                conf = llm.get("confidence")
+                if dealbreaker is True and isinstance(conf, (int, float)) and conf >= layout_dealbreaker_min_confidence:
+                    reason = llm.get("layout_dealbreaker_reason") or "layout dealbreaker"
+                    result.failed.append(
+                        f"LLM-detected layout dealbreaker (conf {conf:.2f}): {reason}"
+                    )
 
         # Deferred filters → ⚠️ unverified flags.
         result.unverified.extend(deferred_labels)

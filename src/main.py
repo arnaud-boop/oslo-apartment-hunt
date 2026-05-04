@@ -28,6 +28,7 @@ from pathlib import Path
 from src.enricher import enrich_listings
 from src.filters import apply_hard_filters, load_config
 from src.generator import render
+from src.llm import analyze_listings
 from src.scorer import score_listings
 
 logger = logging.getLogger(__name__)
@@ -111,8 +112,22 @@ def main() -> int:
         enriched = enrich_listings(pass1_kept)
         _save_json(enriched_path, enriched)
 
+    # ------------------------------------------ 3.5 LLM ANALYSIS PASS ----
+    # Optional. Skipped silently if ANTHROPIC_API_KEY is not set or the
+    # llm config section is `active: false`.
+    llm_cfg = config.get("llm", {}) or {}
+    if llm_cfg.get("active", True):
+        logger.info(
+            "=== 3.5/6 LLM analysis (vibe + layout dealbreaker + apartment signals) ==="
+        )
+        enriched = analyze_listings(enriched, config=llm_cfg)
+        # Persist enriched + llm so SKIP_ENRICH=1 reruns can use them.
+        _save_json(enriched_path, enriched)
+    else:
+        logger.info("LLM analysis disabled in config — skipping")
+
     # ----------------------------------- 4. FILTER PASS 2 (post-enrich) ----
-    logger.info("=== 4/6 Filter pass 2 (detail-page filters) ===")
+    logger.info("=== 4/6 Filter pass 2 (detail-page + LLM filters) ===")
     kept_p2, dropped_p2 = apply_hard_filters(enriched, config)
     logger.info(
         "Pass 2: %d kept, %d dropped (of %d)",

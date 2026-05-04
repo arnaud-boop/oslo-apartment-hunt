@@ -119,6 +119,136 @@ def score_commute_wife(listing: dict, config: dict) -> SubScore | None:
     )
 
 
+def score_apartment(listing: dict, config: dict) -> SubScore | None:
+    """Apartment-quality subscore. Sum of binary signals (each weighted by
+    config), normalised to 0-100. Skips entirely if `apartment.active_in_v1`
+    is false or if there's no LLM data to score against."""
+    apt_cfg = config.get("apartment", {}) or {}
+    if not apt_cfg.get("active_in_v1"):
+        return None
+    llm = listing.get("llm") or {}
+    if not llm:
+        return None  # no LLM data → can't meaningfully score this bucket
+
+    facilities = set(listing.get("facilities") or [])
+
+    out_cfg = apt_cfg.get("outdoor_space", {}) or {}
+    light_cfg = apt_cfg.get("light_orientation", {}) or {}
+    ceiling_cfg = apt_cfg.get("ceiling_height", {}) or {}
+    reno_cfg = apt_cfg.get("recent_renovation", {}) or {}
+    heat_cfg = apt_cfg.get("heating", {}) or {}
+
+    # (label, condition, points). Negative points are penalties; they are NOT
+    # added to max_points (so the realistic max is the sum of positives).
+    signals = [
+        ("balcony/terrace", "Balkong/Terrasse" in facilities,
+         out_cfg.get("balcony_or_terrace_bonus", 0)),
+        ("bakgård/garden", llm.get("has_bakgaard") is True,
+         out_cfg.get("private_garden_bonus", 0)),
+        ("south-facing", llm.get("main_orientation") == "south",
+         light_cfg.get("south_main_bonus", 0)),
+        ("west-facing", llm.get("main_orientation") == "west",
+         light_cfg.get("west_main_bonus", 0)),
+        ("high ceilings", llm.get("ceiling_height_high") is True,
+         ceiling_cfg.get("bonus", 0)),
+        ("peis", "Peis/Ildsted" in facilities,
+         apt_cfg.get("fireplace_peis_bonus", 0)),
+        ("bathtub", llm.get("has_bathtub") is True,
+         apt_cfg.get("bathtub_bonus", 0)),
+        ("open-plan kitchen", llm.get("has_open_plan_kitchen") is True,
+         apt_cfg.get("open_plan_kitchen_bonus", 0)),
+        ("recent renovation", llm.get("renovated_within_5_years") is True,
+         reno_cfg.get("bonus", 0)),
+        ("parking", "Garasje/P-plass" in facilities,
+         apt_cfg.get("parking_bonus", 0)),
+        ("clean layout", llm.get("layout_clean") is True,
+         apt_cfg.get("clean_layout_bonus", 0)),
+        ("no vis-à-vis", llm.get("has_visavi") is False,
+         apt_cfg.get("no_visavi_bonus", 0)),
+        ("collective heat", llm.get("heating_type") == "collective",
+         heat_cfg.get("collective_bonus", 0)),
+    ]
+    penalties = [
+        ("individual electric heat",
+         llm.get("heating_type") == "individual_electric",
+         heat_cfg.get("individual_electric_penalty", 0)),
+    ]
+
+    raw = 0
+    hits: list[str] = []
+    for label, present, bonus in signals:
+        if present and bonus:
+            raw += bonus
+            hits.append(label)
+    for label, present, penalty in penalties:
+        if present and penalty:
+            raw += penalty   # penalty is negative
+            hits.append(f"{label} (-)")
+
+    max_pos = sum(b for _, _, b in signals if b > 0)
+    if max_pos <= 0:
+        return None
+
+    value = max(0.0, min(100.0, raw / max_pos * 100.0))
+    weight = float(config["weights"]["apartment"])
+    return SubScore(
+        name="apartment",
+        value=round(value, 1),
+        weight=weight,
+        detail=(
+            f"{len(hits)} signal(s): {', '.join(hits[:5])}"
+            + (f" (+{len(hits)-5} more)" if len(hits) > 5 else "")
+            if hits
+            else "no positive signals detected"
+        ),
+    )
+
+
+def score_building(listing: dict, config: dict) -> SubScore | None:
+    """Building/neighbourhood subscore. Family-friendly + quiet-street."""
+    bld_cfg = config.get("building", {}) or {}
+    if not bld_cfg.get("active_in_v1"):
+        return None
+    llm = listing.get("llm") or {}
+    if not llm:
+        return None
+    facilities = set(listing.get("facilities") or [])
+
+    family_friendly = (
+        llm.get("family_friendly") is True
+        or "Barnevennlig" in facilities
+    )
+    on_busy = llm.get("on_busy_street")  # True / False / None
+
+    fam_bonus = bld_cfg.get("family_friendly_bonus", 8)
+    quiet_bonus = 4
+    busy_penalty = -8
+
+    raw = 0
+    hits: list[str] = []
+    if family_friendly:
+        raw += fam_bonus
+        hits.append("family-friendly")
+    if on_busy is False:
+        raw += quiet_bonus
+        hits.append("quiet street")
+    elif on_busy is True:
+        raw += busy_penalty
+        hits.append("busy street (-)")
+
+    max_pos = fam_bonus + quiet_bonus
+    if max_pos <= 0:
+        return None
+    value = max(0.0, min(100.0, raw / max_pos * 100.0))
+    weight = float(config["weights"]["building"])
+    return SubScore(
+        name="building",
+        value=round(value, 1),
+        weight=weight,
+        detail=(", ".join(hits) if hits else "no positive signals"),
+    )
+
+
 def score_price_per_m2(
     listing: dict, config: dict, dataset_stats: dict
 ) -> SubScore | None:
@@ -349,6 +479,8 @@ def score_listing(
     for fn in (
         lambda: score_commute_wife(listing, config),
         lambda: score_price_per_m2(listing, config, dataset_stats),
+        lambda: score_apartment(listing, config),
+        lambda: score_building(listing, config),
     ):
         s = fn()
         if s is not None:
@@ -418,12 +550,18 @@ def score_listing(
         except (OSError, ValueError, OverflowError):
             pass
 
+    # Headline: prefer LLM's one-sentence vibe summary when available; fall
+    # back to the deterministic strong/weak/balanced summary otherwise.
+    llm = listing.get("llm") or {}
+    vibe = llm.get("vibe_summary")
+    headline = vibe if isinstance(vibe, str) and vibe.strip() else _make_headline(sub_scores)
+
     return ScoredListing(
         listing=listing,
         score=round(score, 1),
         sub_scores=sub_scores,
         tags=tags,
-        headline=_make_headline(sub_scores),
+        headline=headline,
         unverified=list(filter_result.get("unverified", [])),
         distance_to_current_home_km=dist_home,
         details=details,

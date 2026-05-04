@@ -63,11 +63,15 @@ hard_filters:
 
   exclude_north_facing_main_rooms:
     value: true
-    active: false
+    active: false                  # LLM main_orientation exists but too noisy
+                                   # to gate hard-fail on. Stays as ⚠️ for now.
   exclude_layout_dealbreakers:
     # narrow hallways, gjennomgangsrom, kitchen no window, bath off kitchen
     value: true
-    active: false
+    active: true                   # ACTIVE in v1.1
+    min_confidence: 0.7            # only fire when LLM says yes AND
+                                   # confidence ≥ this threshold
+                                   # (avoids false-positive drops)
 
   # --- v1.x: requires routing (Entur / OSM) ---
 
@@ -126,11 +130,11 @@ location:
 
 
 # ============================================================================
-# Apartment (35%) — almost everything here needs detail-page or LLM data.
-# Nothing in this section is scored in v1 yet.
+# Apartment (35%) — scored from LLM analysis + Finn facilities flags.
+# Active in v1.1.
 # ============================================================================
 apartment:
-  active_in_v1: false
+  active_in_v1: true
   outdoor_space:
     balcony_or_terrace_bonus: 10
     private_garden_bonus: 12
@@ -175,11 +179,13 @@ financials:
 
 
 # ============================================================================
-# Building (15%) — LLM-detected from description. Deferred.
+# Building (15%) — family-friendly + quiet/busy street, both LLM-detected.
+# Active in v1.1.
 # ============================================================================
 building:
-  active_in_v1: false
+  active_in_v1: true
   family_friendly_bonus: 8
+  # Inline weights for the busy/quiet street signal — see scorer.py
 
 
 # ============================================================================
@@ -188,3 +194,16 @@ building:
 tags:
   visning_hot_within_hours: 48
   flag_incomplete_data: true   # ⚠️ on cards we couldn't fully verify
+
+
+# ============================================================================
+# LLM analysis (v1.1) — Claude-driven extraction of qualitative signals.
+# Reads listing description + structured Norwegian fact-table sections,
+# returns vibe summary, layout dealbreakers, light/orientation, etc.
+# Requires ANTHROPIC_API_KEY env var (GH Actions secret in CI).
+# ============================================================================
+llm:
+  active: true
+  model: claude-sonnet-4-6           # claude-haiku-4-5-20251001 if cost matters
+  temperature: 0.2                   # low — we want consistent structured output
+  # Cost estimate: ~$0.20 per fresh full run, near-zero with cache hits.
