@@ -84,6 +84,17 @@ _FIXER_UPPER_RE = re.compile(
     r"\b(oppussingsobjekt|renoveringsobjekt)\b", re.IGNORECASE
 )
 
+# Floor-mention regex — used as a fallback when the structured `floor` field
+# is blank. Norwegian agents sometimes leave the structured field empty
+# (bypassing Finn's floor filter) but still write "1. etg" / "2. etasje" /
+# "i 5. etasje" in the description, since it's required to be disclosed.
+# Matches the most common forms; intentionally tight to avoid false positives
+# from things like "i 1. halvår" or "16,5 m².etasje".
+_FLOOR_RE = re.compile(
+    r"\b(\d{1,2})\.?\s*(?:etg|etasje)\b",
+    re.IGNORECASE,
+)
+
 # Heuristic bod keywords. False-positive prone (could match "boder" in a
 # negative context, or other "bod*" words). Kept as ⚠️ evidence, not a filter.
 _BOD_RE = re.compile(r"\b(bod(?:er|areal|en)?|kjellerbod|loftbod)\b", re.IGNORECASE)
@@ -187,7 +198,33 @@ def extract_enrichment(ad: dict) -> dict:
     general = _general_text_map(ad)
 
     out: dict[str, Any] = {}
-    out["floor"] = ad.get("floor")
+
+    # Floor — prefer the structured field; fall back to a regex over the
+    # description and the structured fact-table when the agent left the
+    # floor field blank (a known cheat to bypass Finn's floor filter).
+    structured_floor = ad.get("floor")
+    out["floor"] = structured_floor
+    out["floor_source"] = "structured" if structured_floor is not None else None
+    if structured_floor is None:
+        haystack = description + "\n" + "\n".join(general.values())
+        # First match wins; floor mentions in actual context tend to come early.
+        m = _FLOOR_RE.search(haystack)
+        if m:
+            try:
+                candidate = int(m.group(1))
+            except ValueError:
+                candidate = None
+            if candidate is not None and 1 <= candidate <= 30:
+                out["floor"] = candidate
+                out["floor_source"] = "description_regex"
+                logger.info(
+                    "floor extracted from description (no structured field): "
+                    "ad %s → floor %d (matched: %r)",
+                    ad.get("adId"),
+                    candidate,
+                    m.group(0),
+                )
+
     out["disposed"] = bool(ad.get("disposed", False))
     out["has_elevator"] = "Heis" in facilities
     out["construction_year"] = ad.get("constructionYear")
@@ -241,10 +278,53 @@ def _load_cache() -> dict:
     if not CACHE_FILE.exists():
         return {}
     try:
-        return json.loads(CACHE_FILE.read_text())
+        cache = json.loads(CACHE_FILE.read_text())
     except json.JSONDecodeError:
         logger.warning("enrichment cache corrupt; ignoring")
         return {}
+    # Backfill the floor_source field on entries written before the v1.1
+    # description-regex fallback. Avoids needing to re-fetch detail pages
+    # just to apply the new logic to cached entries.
+    _backfill_floor_source(cache)
+    return cache
+
+
+def _backfill_floor_source(cache: dict) -> int:
+    """Apply the description-regex floor fallback to cached entries that
+    don't have it yet. In-place. Returns count of entries patched."""
+    patched = 0
+    rescued = 0
+    for entry in cache.values():
+        if not isinstance(entry, dict) or "floor_source" in entry:
+            continue
+        floor = entry.get("floor")
+        if floor is not None:
+            entry["floor_source"] = "structured"
+            patched += 1
+            continue
+        haystack = (entry.get("description") or "") + "\n" + "\n".join(
+            (entry.get("general_text") or {}).values()
+        )
+        m = _FLOOR_RE.search(haystack)
+        if m:
+            try:
+                candidate = int(m.group(1))
+            except ValueError:
+                candidate = None
+            if candidate is not None and 1 <= candidate <= 30:
+                entry["floor"] = candidate
+                entry["floor_source"] = "description_regex"
+                patched += 1
+                rescued += 1
+                continue
+        entry["floor_source"] = "none"
+        patched += 1
+    if rescued:
+        logger.info(
+            "Backfilled floor from description for %d cached listing(s) "
+            "(of %d cache entries patched)", rescued, patched
+        )
+    return patched
 
 
 def _save_cache(cache: dict) -> None:

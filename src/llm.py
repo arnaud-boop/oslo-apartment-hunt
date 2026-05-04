@@ -172,9 +172,9 @@ ANALYSIS_TOOL = {
 
 _SYSTEM = (
     "You are analyzing a Norwegian real-estate listing for a family in Oslo "
-    "(parents + 6-year-old daughter) considering buying. The user will share "
-    "the listing data; you call the submit_listing_analysis tool with your "
-    "structured assessment.\n"
+    "(Arnaud and Céline, with their 6-year-old daughter) considering buying. "
+    "The user will share the listing data; you call the submit_listing_analysis "
+    "tool with your structured assessment.\n"
     "\n"
     "Be honest. Sellers' descriptions are marketing copy — read between the "
     "lines. Don't infer features that aren't actually mentioned or visible. "

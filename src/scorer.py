@@ -85,19 +85,19 @@ class ScoredListing:
 # ----------------------------------------------------------- sub-scores ----
 
 
-def score_commute_wife(listing: dict, config: dict) -> SubScore | None:
+def score_commute_celine(listing: dict, config: dict) -> SubScore | None:
     coords = listing.get("coordinates")
     if not coords or "lat" not in coords or "lon" not in coords:
         return None
-    cw = config["location"]["commute_wife"]
-    dest = cw["coordinates"]
+    cc = config["location"]["commute_celine"]
+    dest = cc["coordinates"]
     minutes = commute_minutes(coords, dest)
     if minutes is None:
         return None
     km = haversine_km(coords, dest)
 
-    full_max = cw["full_score_max_minutes"]
-    partial_max = cw["partial_score_max_minutes"]
+    full_max = cc["full_score_max_minutes"]
+    partial_max = cc["partial_score_max_minutes"]
 
     # Map minutes → 0-100. ≤full_max = 100. (full_max, partial_max] = 50-100 linear.
     # > partial_max: falls off linearly, 0 at partial_max + 30 min.
@@ -112,7 +112,7 @@ def score_commute_wife(listing: dict, config: dict) -> SubScore | None:
 
     weight = float(config["weights"]["location_and_commute"])
     return SubScore(
-        name="commute_wife",
+        name="commute_celine",
         value=round(value, 1),
         weight=weight,
         detail=f"~{minutes:.0f} min to Helsfyr ({km:.1f} km)",
@@ -477,7 +477,7 @@ def score_listing(
 
     sub_scores: list[SubScore] = []
     for fn in (
-        lambda: score_commute_wife(listing, config),
+        lambda: score_commute_celine(listing, config),
         lambda: score_price_per_m2(listing, config, dataset_stats),
         lambda: score_apartment(listing, config),
         lambda: score_building(listing, config),
@@ -529,12 +529,12 @@ def score_listing(
             details[f"→ Future school ({nxt_school.get('address','')})"] = (
                 f"~{mins:.0f} min · {km:.1f} km"
             )
-    cw = config.get("location", {}).get("commute_wife", {})
-    if coords and cw.get("coordinates"):
-        km = haversine_km(coords, cw["coordinates"])
-        mins = commute_minutes(coords, cw["coordinates"])
+    cc = config.get("location", {}).get("commute_celine", {})
+    if coords and cc.get("coordinates"):
+        km = haversine_km(coords, cc["coordinates"])
+        mins = commute_minutes(coords, cc["coordinates"])
         if mins is not None:
-            details[f"→ Wife's commute ({cw.get('destination','')})"] = (
+            details[f"→ Céline's commute ({cc.get('destination','')})"] = (
                 f"~{mins:.0f} min · {km:.1f} km"
             )
     if listing.get("area_m2") and listing.get("total_price"):

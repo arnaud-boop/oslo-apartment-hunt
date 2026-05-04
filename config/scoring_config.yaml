@@ -27,7 +27,7 @@ hard_filters:
     active: true
     current_school_max_minutes: 25     # ≤25 to Skovveien 9 (current school)
     future_school_max_minutes: 33      # ≤33 to Snarøyveien 30 (future school)
-    wife_commute_max_minutes: 45       # ≤45 to Freserveien 1 (wife's work)
+    celine_commute_max_minutes: 45     # ≤45 to Freserveien 1 (Céline's work)
 
   # --- v1.0.5: requires detail-page fetch ---
 
@@ -114,9 +114,8 @@ location:
       good_threshold_minutes: 25                    # for tag display only
     in_between_threshold_minutes: 30                # ≤30 min to BOTH = ⚖️
 
-  # Wife's commute (scored).
-  # v1: uses Haversine distance as a rough proxy. v1.x: real Entur transit.
-  commute_wife:
+  # Céline's commute (scored).
+  commute_celine:
     destination: "Freserveien 1, Oslo (Helsfyr)"
     coordinates: { lat: 59.902834797322285, lon: 10.784423197657866 }
     full_score_max_minutes: 40                      # ≤40 = full points

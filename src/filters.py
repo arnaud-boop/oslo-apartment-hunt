@@ -161,14 +161,14 @@ def apply_hard_filters(
     caps_active = bool(caps_cfg.get("active"))
     cur_cap = caps_cfg.get("current_school_max_minutes")
     nxt_cap = caps_cfg.get("future_school_max_minutes")
-    wife_cap = caps_cfg.get("wife_commute_max_minutes")
+    celine_cap = caps_cfg.get("celine_commute_max_minutes")
     school_coords = config.get("location", {}).get("schools", {})
     cur_coords = school_coords.get("current", {}).get("coordinates")
     nxt_coords = school_coords.get("next", {}).get("coordinates")
-    wife_coords = (config.get("location", {}).get("commute_wife", {}) or {}).get(
+    celine_coords = (config.get("location", {}).get("commute_celine", {}) or {}).get(
         "coordinates"
     )
-    if caps_active and not (cur_coords or nxt_coords or wife_coords):
+    if caps_active and not (cur_coords or nxt_coords or celine_coords):
         logger.warning(
             "location_caps.active=true but missing coordinates — disabling filter"
         )
@@ -257,11 +257,11 @@ def apply_hard_filters(
                         result.failed.append(
                             f"future school {nxt_min:.0f} min > {nxt_cap} cap"
                         )
-                if wife_coords and wife_cap is not None:
-                    wife_min = commute_minutes(coords, wife_coords)
-                    if wife_min is not None and wife_min > wife_cap:
+                if celine_coords and celine_cap is not None:
+                    celine_min = commute_minutes(coords, celine_coords)
+                    if celine_min is not None and celine_min > celine_cap:
                         result.failed.append(
-                            f"wife's commute {wife_min:.0f} min > {wife_cap} cap"
+                            f"Céline's commute {celine_min:.0f} min > {celine_cap} cap"
                         )
 
         # Detail-page filters. Each requires the listing to be enriched. If
