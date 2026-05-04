@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>{{ l.title or '(no title)' }} — Oslo apartments</title>
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+
+{% set vote_state = votes.get(l.finn_id) if votes else None %}
+{% set arnaud_acked = vote_state and ((vote_state.get('arnaud') or {}).get('vote') or (vote_state.get('arnaud') or {}).get('note')) %}
+{% set celine_acked = vote_state and ((vote_state.get('celine') or {}).get('vote') or (vote_state.get('celine') or {}).get('note')) %}
+{% set is_new_in_batch = new_in_batch and (l.finn_id in new_in_batch) %}
+
+<header class="eval-header">
+  <a class="eval-back" href="../index.html">← back to digest</a>
+  <a class="eval-finn" href="{{ l.url }}" target="_blank" rel="noopener">→ View on Finn (#{{ l.finn_id }})</a>
+</header>
+
+<main class="eval-page"
+      data-finn-id="{{ l.finn_id }}"
+      {% if is_new_in_batch %}data-new-in-batch="1"{% endif %}
+      {% if arnaud_acked %}data-arnaud-acked="1"{% endif %}
+      {% if celine_acked %}data-celine-acked="1"{% endif %}>
+
+  {# ---------- photo strip ---------- #}
+  {% if l.image_urls %}
+  <section class="eval-photos">
+    {% for img in l.image_urls[:4] %}
+      <a href="{{ l.url }}" target="_blank" rel="noopener">
+        <img src="{{ img }}" alt="" loading="lazy">
+      </a>
+    {% endfor %}
+    {% if l.image_urls|length > 4 %}
+      <a href="{{ l.url }}" target="_blank" rel="noopener" class="more-photos">
+        +{{ l.image_urls|length - 4 }} more on Finn →
+      </a>
+    {% endif %}
+  </section>
+  {% endif %}
+
+  {# ---------- title block ---------- #}
+  <section class="eval-title-block">
+    <div class="score-badge {{ score_tier(s.score) }}">
+      <span class="score-num">{{ '%.0f' % s.score }}</span>
+      <span class="score-out-of">/100</span>
+    </div>
+    <div class="eval-title-text">
+      <h1>{{ l.title or '(no title)' }}</h1>
+      <p class="card-address">{{ l.address or '' }}{% if l.local_area %} · <span class="local-area">{{ l.local_area }}</span>{% endif %}</p>
+      <p class="card-type">{{ l.property_type or '' }}{% if l.owner_type %} · {{ l.owner_type }}{% endif %}</p>
+    </div>
+  </section>
+
+  {% if s.headline %}
+  <p class="eval-vibe">{{ s.headline }}</p>
+  {% endif %}
+
+  {% if s.tags or is_new_in_batch %}
+  <div class="card-tags eval-tags">
+    {% if is_new_in_batch %}<span class="tag new-tag">🆕 NEW</span>{% endif %}
+    {% for t in s.tags %}<span class="tag">{{ t }}</span>{% endfor %}
+  </div>
+  {% endif %}
+
+  {# ---------- top stats ---------- #}
+  <section class="card-stats eval-stats">
+    <div class="stat"><span class="stat-label">Total</span><span class="stat-value">{{ fmt_nok(l.total_price) }}</span></div>
+    <div class="stat"><span class="stat-label">Ask</span><span class="stat-value">{{ fmt_nok(l.asking_price) }}</span></div>
+    <div class="stat"><span class="stat-label">Felles/mnd</span><span class="stat-value">{{ fmt_nok(l.fellesutgifter_month) }}</span></div>
+    <div class="stat"><span class="stat-label">Gjeld</span><span class="stat-value">{{ fmt_nok(l.fellesgjeld) }}</span></div>
+    <div class="stat"><span class="stat-label">Area</span><span class="stat-value">{{ l.area_m2 }} m²</span></div>
+    <div class="stat"><span class="stat-label">Beds</span><span class="stat-value">{{ l.bedrooms }}</span></div>
+    {% if s.distance_to_current_home_km is not none %}
+    <div class="stat"><span class="stat-label">From home</span><span class="stat-value">{{ '%.1f' % s.distance_to_current_home_km }} km</span></div>
+    {% endif %}
+  </section>
+
+  {# ---------- criteria checklist ---------- #}
+  <section class="eval-section">
+    <h2>Criteria checklist</h2>
+    <ul class="criteria-list">
+      {% for row in criteria %}
+        <li class="criteria-row criteria-{{ row.status }}">
+          <span class="criteria-icon">
+            {%- if row.status == 'pass' -%}✓
+            {%- elif row.status == 'fail' -%}✗
+            {%- elif row.status == 'unverified' -%}⚠️
+            {%- else -%}—{%- endif -%}
+          </span>
+          <span class="criteria-label">{{ row.label }}</span>
+          <span class="criteria-detail">{{ row.detail }}</span>
+        </li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  {# ---------- score breakdown ---------- #}
+  {% if s.sub_scores %}
+  <section class="eval-section">
+    <h2>Score breakdown</h2>
+    <div class="card-subscores">
+      {% for sub in s.sub_scores %}
+      <div class="subscore">
+        <span class="subscore-name">{{ sub.name }}</span>
+        <span class="subscore-bar">
+          <span class="subscore-bar-fill" style="width: {{ sub.value }}%"></span>
+        </span>
+        <span class="subscore-value">{{ '%.0f' % sub.value }}</span>
+        <span class="subscore-detail">{{ sub.detail }} · weight {{ '%.0f' % sub.weight }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  {# ---------- transit itineraries ---------- #}
+  <section class="eval-section">
+    <h2>Transit (next Mon 07:30 Oslo)</h2>
+    {% for dest in transit_targets %}
+      {% set t = transit.get(dest.key) %}
+      <div class="transit-target">
+        <h3>→ {{ dest.label }}</h3>
+        {% if not t or t.minutes is none %}
+          <p class="transit-empty">no route data available</p>
+        {% else %}
+          <p class="transit-summary">
+            ~{{ '%.0f' % t.minutes }} min total
+            {% if t.summary %} · {{ t.summary }}{% endif %}
+          </p>
+          {% if t.legs %}
+          <ol class="transit-legs">
+            {% for leg in t.legs %}
+              <li class="transit-leg">
+                <span class="leg-mode">{{ mode_icon(leg.mode) }} {{ leg.mode }}</span>
+                {% if leg.line and leg.line.publicCode %}
+                  <span class="leg-line">line {{ leg.line.publicCode }}</span>
+                {% endif %}
+                <span class="leg-from-to">
+                  {% if leg.fromPlace and leg.fromPlace.name %}{{ leg.fromPlace.name }}{% endif %}
+                  {% if leg.toPlace and leg.toPlace.name %} → {{ leg.toPlace.name }}{% endif %}
+                </span>
+                <span class="leg-duration">{{ '%.0f' % (leg.duration / 60) }} min</span>
+              </li>
+            {% endfor %}
+          </ol>
+          {% endif %}
+        {% endif %}
+      </div>
+    {% endfor %}
+  </section>
+
+  {# ---------- LLM analysis ---------- #}
+  {% if l.llm %}
+  <section class="eval-section">
+    <h2>LLM analysis
+      {% if l.llm.confidence is defined %}
+      <span class="llm-confidence-h">overall confidence {{ '%.0f' % (l.llm.confidence * 100) }}%</span>
+      {% endif %}
+    </h2>
+    <dl class="llm-fields">
+      {% set fields = [
+        ('main_orientation', 'Main orientation'),
+        ('light_quality', 'Light quality'),
+        ('has_visavi', 'Vis-à-vis (building opposite)'),
+        ('on_busy_street', 'On busy street'),
+        ('renovated_within_5_years', 'Renovated within 5 years'),
+        ('has_open_plan_kitchen', 'Open-plan kitchen'),
+        ('ceiling_height_high', 'Ceilings ≥ 2.7 m'),
+        ('has_bathtub', 'Bathtub'),
+        ('has_bakgaard', 'Bakgård / private garden'),
+        ('heating_type', 'Heating type'),
+        ('felleskostnader_includes_heat', 'Felleskostnader includes heat'),
+        ('felleskostnader_includes_internet', 'Felleskostnader includes internet'),
+        ('family_friendly', 'Family-friendly signals'),
+        ('layout_clean', 'Clean layout'),
+        ('layout_dealbreaker', 'Layout dealbreaker'),
+        ('layout_dealbreaker_reason', 'Layout dealbreaker reason'),
+      ] %}
+      {% for key, label in fields %}
+        {% set v = l.llm.get(key) %}
+        <dt>{{ label }}</dt>
+        <dd>
+          {%- if v is none -%}<span class="llm-unknown">unknown</span>
+          {%- elif v is sameas true -%}<span class="llm-yes">yes</span>
+          {%- elif v is sameas false -%}<span class="llm-no">no</span>
+          {%- else -%}{{ v }}
+          {%- endif -%}
+        </dd>
+      {% endfor %}
+    </dl>
+  </section>
+  {% endif %}
+
+  {# ---------- computed details (commute lines, price/m², plot, posted) ---------- #}
+  {% if s.details %}
+  <section class="eval-section">
+    <h2>Computed details</h2>
+    <dl class="card-details-dl">
+      {% for k, v in s.details.items() %}
+      <dt>{{ k }}</dt><dd>{{ v }}</dd>
+      {% endfor %}
+    </dl>
+  </section>
+  {% endif %}
+
+  {# ---------- viewing times ---------- #}
+  {% if l.viewing_times %}
+  <section class="eval-section">
+    <h2>Visning</h2>
+    <ul class="visning-list">
+      {% for v in l.viewing_times %}
+        <li><time datetime="{{ v }}">{{ fmt_visning(v) }}</time></li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  {# ---------- description ---------- #}
+  {% if l.description %}
+  <section class="eval-section">
+    <h2>Description</h2>
+    <details class="eval-description">
+      <summary>{{ l.description[:300] }}{% if l.description|length > 300 %}…{% endif %}</summary>
+      <div class="eval-description-full">{{ l.description }}</div>
+    </details>
+  </section>
+  {% endif %}
+
+  {# ---------- voting block (same shape as digest cards) ---------- #}
+  <section class="eval-section">
+    <h2>Vote &amp; notes</h2>
+    <div class="voting-block" data-finn-id="{{ l.finn_id }}">
+      {% for v in ('arnaud', 'celine') %}
+        {% set vstate = (vote_state.get(v) if vote_state else {}) or {} %}
+        <div class="vote-column" data-voter="{{ v }}">
+          <span class="vote-label">{{ 'Arnaud' if v == 'arnaud' else 'Céline' }}</span>
+          <button class="vote-btn{% if vstate.vote == 'up' %} active{% endif %}"
+                  data-vote-button="up"   data-voter="{{ v }}">👍</button>
+          <button class="vote-btn{% if vstate.vote == 'down' %} active{% endif %}"
+                  data-vote-button="down" data-voter="{{ v }}">👎</button>
+          <button class="vote-btn note-btn" data-note-toggle data-voter="{{ v }}">💬</button>
+          <span class="note-display{% if not vstate.note %} empty{% endif %}">{{ vstate.note or '' }}</span>
+        </div>
+      {% endfor %}
+      <div class="note-editor">
+        {% set my_note = ((vote_state.get('arnaud') or {}) if vote_state else {}).get('note', '') %}
+        <textarea data-note-input rows="3" placeholder="Add a note...">{{ my_note }}</textarea>
+        <div class="note-editor-actions">
+          <button data-note-save  class="note-action-btn save">Save</button>
+          <button data-note-cancel class="note-action-btn cancel">Cancel</button>
+        </div>
+      </div>
+      <span class="vote-status" aria-live="polite"></span>
+    </div>
+  </section>
+
+  {# ---------- external links footer ---------- #}
+  <footer class="eval-footer">
+    <p><a class="eval-finn-bottom" href="{{ l.url }}" target="_blank" rel="noopener">→ View on Finn (#{{ l.finn_id }})</a></p>
+  </footer>
+
+</main>
+
+<script>
+  window.VOTING_ENDPOINT = {{ voting_endpoint | tojson }};
+</script>
+<script src="../votes.js" defer></script>
+
+</body>
+</html>

@@ -199,6 +199,7 @@ def main() -> int:
         votes=votes,
         voting_endpoint=voting_endpoint,
         new_in_batch=new_in_batch,
+        config=config,
     )
 
     logger.info(

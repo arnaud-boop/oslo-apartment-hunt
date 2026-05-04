@@ -51,13 +51,13 @@
            {% if is_new_in_batch %}data-new-in-batch="1"{% endif %}
            {% if arnaud_acked %}data-arnaud-acked="1"{% endif %}
            {% if celine_acked %}data-celine-acked="1"{% endif %}>
-    <div class="card-photo">
+    <a class="card-photo eval-link" href="listings/{{ l.finn_id }}.html">
       {% if l.image_url %}
         <img src="{{ l.image_url }}" alt="" loading="lazy">
       {% else %}
         <div class="no-photo">no photo</div>
       {% endif %}
-    </div>
+    </a>
 
     <div class="card-body">
       <div class="card-header">
@@ -66,7 +66,7 @@
           <span class="score-out-of">/100</span>
         </div>
         <div class="card-title-block">
-          <h2><a href="{{ l.url }}" target="_blank" rel="noopener">{{ l.title or '(no title)' }}</a></h2>
+          <h2><a class="eval-link" href="listings/{{ l.finn_id }}.html">{{ l.title or '(no title)' }}</a></h2>
           <p class="card-address">
             {{ l.address or '' }}
             {%- if l.local_area %} · <span class="local-area">{{ l.local_area }}</span>{% endif %}
@@ -214,7 +214,7 @@
       </div>
 
       <p class="card-link">
-        <a href="{{ l.url }}" target="_blank" rel="noopener">→ View on Finn (#{{ l.finn_id }})</a>
+        <a class="eval-link" href="listings/{{ l.finn_id }}.html">→ Full evaluation (#{{ l.finn_id }})</a>
       </p>
     </div>
   </article>

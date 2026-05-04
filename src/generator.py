@@ -17,7 +17,20 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
+from src.criteria import compute_checklist
+from src.routing import commute_details
+
 logger = logging.getLogger(__name__)
+
+
+_MODE_ICON = {
+    "bus": "🚌", "tram": "🚊", "metro": "🚇", "rail": "🚆",
+    "water": "⛴️", "foot": "🚶", "bicycle": "🚲", "car": "🚗",
+}
+
+
+def _mode_icon(mode: str) -> str:
+    return _MODE_ICON.get(mode or "", "🚉")
 
 
 # ---------------------------------------------------------------- helpers ----
@@ -79,6 +92,7 @@ def render(
     votes: dict | None = None,
     voting_endpoint: str = "",
     new_in_batch: set | None = None,
+    config: dict | None = None,
 ) -> Path:
     template_dir = repo_root / "templates"
     static_dir = repo_root / "static"
@@ -93,6 +107,7 @@ def render(
         fmt_nok=fmt_nok,
         fmt_visning=fmt_visning,
         score_tier=score_tier,
+        mode_icon=_mode_icon,
     )
     template = env.get_template("index.html.j2")
 
@@ -126,6 +141,17 @@ def render(
         if src.exists():
             shutil.copy2(src, out_dir / asset)
 
+    # Render per-listing eval pages.
+    render_listing_pages(
+        scored=scored,
+        env=env,
+        out_dir=out_dir,
+        config=config or {},
+        votes=votes or {},
+        voting_endpoint=voting_endpoint or "",
+        new_in_batch=new_in_batch_set,
+    )
+
     logger.info(
         "Wrote %s (%d listings, %d KB)",
         index_path,
@@ -133,6 +159,81 @@ def render(
         len(html) // 1024,
     )
     return index_path
+
+
+# ----- per-listing eval pages -------------------------------------------
+
+
+_TRANSIT_TARGETS = [
+    {"key": "current_school", "label_template": "Current school ({addr})", "config_path": ("location", "schools", "current")},
+    {"key": "future_school",  "label_template": "Future school ({addr})",  "config_path": ("location", "schools", "next")},
+    {"key": "celine",         "label_template": "Céline's commute ({addr})", "config_path": ("location", "commute_celine")},
+]
+
+
+def _resolve_target(config: dict, path: tuple) -> dict:
+    cur: any = config or {}
+    for k in path:
+        cur = (cur or {}).get(k) or {}
+    return cur or {}
+
+
+def render_listing_pages(
+    *,
+    scored: list[dict],
+    env: Environment,
+    out_dir: Path,
+    config: dict,
+    votes: dict,
+    voting_endpoint: str,
+    new_in_batch: set,
+) -> int:
+    """Render dist/listings/<finn_id>.html per scored listing."""
+    template = env.get_template("listing.html.j2")
+    listings_dir = out_dir / "listings"
+    listings_dir.mkdir(parents=True, exist_ok=True)
+
+    transit_targets = []
+    for spec in _TRANSIT_TARGETS:
+        target = _resolve_target(config, spec["config_path"])
+        addr = target.get("address") or target.get("destination") or "?"
+        transit_targets.append({
+            "key": spec["key"],
+            "label": spec["label_template"].format(addr=addr),
+            "coordinates": target.get("coordinates"),
+        })
+
+    written = 0
+    for s in scored:
+        listing = s.get("listing") or {}
+        finn_id = str(listing.get("finn_id") or "")
+        if not finn_id:
+            continue
+        criteria = compute_checklist(listing, config)
+        # Per-listing transit lookup using the cache (fast).
+        coords = listing.get("coordinates")
+        transit = {}
+        for target in transit_targets:
+            tcoords = target.get("coordinates")
+            if not coords or not tcoords:
+                transit[target["key"]] = None
+                continue
+            transit[target["key"]] = commute_details(coords, tcoords)
+        html = template.render(
+            s=s,
+            l=listing,
+            criteria=criteria,
+            transit=transit,
+            transit_targets=transit_targets,
+            votes=votes,
+            voting_endpoint=voting_endpoint,
+            new_in_batch=new_in_batch,
+        )
+        out_path = listings_dir / f"{finn_id}.html"
+        out_path.write_text(html, encoding="utf-8")
+        written += 1
+    logger.info("Wrote %d eval page(s) under %s/", written, listings_dir)
+    return written
 
 
 # ------------------------------------------------------------------- main ----

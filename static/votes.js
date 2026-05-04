@@ -19,6 +19,22 @@
 
   const isInteractive = (VOTER === "arnaud" || VOTER === "celine") && ENDPOINT;
 
+  // Propagate ?v= to all internal navigation links so the voter identity
+  // carries from the digest into the eval pages and back. Marked links are
+  // anything with class="eval-link" or class="eval-back".
+  if (VOTER) {
+    const propagate = function (a) {
+      try {
+        const url = new URL(a.href, window.location.href);
+        // Only rewrite same-origin links — leave external (Finn) untouched.
+        if (url.origin !== window.location.origin) return;
+        url.searchParams.set("v", VOTER);
+        a.href = url.toString();
+      } catch (e) { /* malformed href, leave alone */ }
+    };
+    document.querySelectorAll("a.eval-link, a.eval-back").forEach(propagate);
+  }
+
   // Mark the page so CSS knows whether we have a voter and an endpoint.
   document.body.dataset.voter = isInteractive ? VOTER : "";
   document.body.dataset.votingActive = isInteractive ? "1" : "";
