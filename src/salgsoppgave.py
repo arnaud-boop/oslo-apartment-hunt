@@ -60,10 +60,11 @@ DEFAULT_MODEL = "claude-haiku-4-5-20251001"
 DEFAULT_TEMPERATURE = 0.1
 DEFAULT_MAX_TOKENS = 2048
 
-# Cap input at ~20 K tokens — many salgsoppgaves are 50-200 pages of legal
-# boilerplate; bumping from 60K to 80K so red-flag-bearing sections
-# (sameie disputes, planned assessments) further into the doc make it in.
-TEXT_CHAR_LIMIT = 80000
+# Cap input at ~37 K tokens. Salgsoppgaver run 50-200 pages and the
+# important technical sections (Tilstand, Areal, Rom-for-rom, Sameiet,
+# Servitutter) often live well past page 30. Bumping to 150K covers most
+# documents without the cost of full Sonnet-context inclusion.
+TEXT_CHAR_LIMIT = 150000
 
 # Module singletons.
 _session: Optional[requests.Session] = None
@@ -104,10 +105,16 @@ EXTRACTION_TOOL = {
             "bedroom_quality_descriptor": {
                 "type": ["string", "null"],
                 "description": (
-                    "Qualitative descriptor when m² sizes aren't given. "
-                    "E.g. 'gode soverom', 'romslige soverom', 'luftige', "
-                    "'små soverom', 'store soverom'. Quote the salgsoppgave "
-                    "wording where possible. Null only if no descriptor."
+                    "Qualitative descriptor SPECIFICALLY about the bedrooms "
+                    "(soverom) — NOT about the apartment overall. Quote the "
+                    "salgsoppgave's bedroom-specific phrasing verbatim. "
+                    "Good examples: 'gode soverom', 'romslige soverom', "
+                    "'4 gode soverom hvorav 1 med hemsløsning'. "
+                    "BAD examples (do NOT put these here — they describe the "
+                    "apartment, not the bedrooms): 'vakker', 'klassisk', "
+                    "'påkostet', 'moderne', 'lekker', 'flott', 'pen'. "
+                    "Null when the doc describes only the apartment overall, "
+                    "not the bedrooms specifically."
                 ),
             },
             "wet_rooms_count": {
@@ -276,8 +283,20 @@ _SYSTEM = (
     "(real-estate sales prospectus). Call the submit_salgsoppgave_extraction "
     "tool with the structured fields.\n"
     "\n"
-    "Rule of thumb: be CONSERVATIVE about inference, but TRUST explicit "
-    "statements even when brief.\n"
+    "RULE OF THUMB: be CONSERVATIVE about inference, but TRUST explicit "
+    "statements even when brief. Don't return null when the data is plainly "
+    "in the doc — that's a failure of extraction, not conservatism.\n"
+    "\n"
+    "ANTI-PATTERNS to avoid:\n"
+    "  - Don't use marketing/intro copy as bedroom_quality_descriptor. "
+    "Generic apartment adjectives ('klassisk', 'lekker', 'påkostet') do "
+    "NOT describe bedrooms. Only quote phrases that actually mention "
+    "soverom.\n"
+    "  - Don't return has_bod=null when the doc says 'kjellerbod', "
+    "'loftbod', 'sportsbod', or just 'bod' as a room. Those mean has_bod=true.\n"
+    "  - Don't return wet_rooms_count=null when the doc lists 'Bad 1' "
+    "and only 'Bad 1' (i.e. one bathroom). That means wet_rooms_count=1 "
+    "(or 2 if there's also a separate WC/toalett).\n"
     "\n"
     "EXTRACTION PATTERNS:\n"
     "\n"
@@ -535,6 +554,44 @@ def _fresh(entry: dict) -> bool:
     return datetime.now(timezone.utc) - fetched < timedelta(days=CACHE_TTL_DAYS)
 
 
+def _patch_listing_with_salgsoppgave(listing: dict, salgs: dict) -> None:
+    """Backfill listing-level fields from salgsoppgave when Finn enrichment
+    was silent. Detail-page data is authoritative when present; salgsoppgave
+    only fills the gaps. In-place mutation."""
+    if not salgs:
+        return
+
+    # Floor — only patch if Finn left it blank (no structured value AND no
+    # description-regex catch). Tag the source so the eval page can show
+    # provenance ("from salgsoppgave").
+    if listing.get("floor") is None and salgs.get("floor") is not None:
+        try:
+            f = int(salgs["floor"])
+        except (TypeError, ValueError):
+            f = None
+        if f is not None and 0 <= f <= 30:
+            listing["floor"] = f
+            listing["floor_source"] = "salgsoppgave"
+
+    # Construction year — Finn detail page usually has this, but salgsoppgave
+    # can fill in for older entries that lack it.
+    if not listing.get("construction_year") and salgs.get("construction_year"):
+        listing["construction_year"] = salgs["construction_year"]
+
+    # Energy class — Finn detail page exposes it via energyLabel, but the
+    # salgsoppgave is sometimes the only authoritative source.
+    if not listing.get("energy_class") and salgs.get("energy_class"):
+        listing["energy_class"] = salgs["energy_class"]
+
+    # Plot size — for houses/townhouses; Finn's area_plot lives on listing
+    # data when applicable. Salgsoppgave's plot_size_m2 is more reliable.
+    if not listing.get("plot_m2") and salgs.get("plot_size_m2"):
+        try:
+            listing["plot_m2"] = float(salgs["plot_size_m2"])
+        except (TypeError, ValueError):
+            pass
+
+
 # ----------------------------------------------------- pipeline -----------
 
 
@@ -586,6 +643,7 @@ def enrich_with_salgsoppgave(
             data = _cache[finn_id].get("data")
             if data:
                 merged["salgsoppgave"] = data
+                _patch_listing_with_salgsoppgave(merged, data)
                 cached_count += 1
             out.append(merged)
             continue
@@ -619,6 +677,7 @@ def enrich_with_salgsoppgave(
             if (fetched_count + 1) % 5 == 0:
                 _save_cache(_cache)
         merged["salgsoppgave"] = data
+        _patch_listing_with_salgsoppgave(merged, data)
         out.append(merged)
         fetched_count += 1
 

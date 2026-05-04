@@ -834,6 +834,30 @@ body[data-voting-active=""] .note-editor { display: none !important; }
   background: color-mix(in srgb, var(--score-low) 12%, var(--bg-card));
 }
 .red-flags-high h2 { border-left-color: var(--score-low) !important; }
+
+/* "No issues" positive confirmation — green border, restrained styling. */
+.red-flags-clean {
+  border-left-color: var(--score-high);
+  background: color-mix(in srgb, var(--score-high) 6%, var(--bg-card));
+}
+.red-flags-clean h2 {
+  border-left-color: var(--score-high) !important;
+  font-size: 1.05rem;
+}
+.red-flags-clean-detail {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--fg-muted);
+  line-height: 1.5;
+}
+
+/* Provenance tag inside LLM-analysis dl, e.g. "(salgsoppgave)". */
+.llm-source {
+  color: var(--fg-faint);
+  font-size: 0.8em;
+  font-style: italic;
+  margin-left: 0.3rem;
+}
 .red-flag-list {
   list-style: none;
   margin: 0;

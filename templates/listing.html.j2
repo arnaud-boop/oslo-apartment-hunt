@@ -87,31 +87,47 @@
     </div>
   </section>
 
-  {# ---------- red flags (prominent — buyer should see these first) ---------- #}
-  {% set red_flags = (l.salgsoppgave or {}).get('red_flags') or [] %}
-  {% if red_flags %}
-  {%- set max_severity = 'low' -%}
-  {%- for f in red_flags -%}
-    {%- if f.severity == 'high' -%}{% set max_severity = 'high' %}{%- endif -%}
-    {%- if f.severity == 'medium' and max_severity != 'high' -%}{% set max_severity = 'medium' %}{%- endif -%}
-  {%- endfor -%}
-  <section class="eval-section red-flags red-flags-{{ max_severity }}">
-    <h2>🚩 Issues to know about ({{ red_flags|length }})</h2>
-    <ul class="red-flag-list">
-      {% for f in red_flags %}
-        <li class="red-flag red-flag-{{ f.severity }}">
-          <span class="red-flag-meta">
-            <span class="red-flag-severity">{{ f.severity }}</span>
-            <span class="red-flag-category">{{ f.category }}</span>
-          </span>
-          <div class="red-flag-body">
-            <strong class="red-flag-title">{{ f.title }}</strong>
-            <p class="red-flag-description">{{ f.description }}</p>
-          </div>
-        </li>
-      {% endfor %}
-    </ul>
-  </section>
+  {# ---------- red flags / "no issues" status (always shown when we have
+       a salgsoppgave extraction; gives positive confirmation when nothing
+       problematic was found rather than silence) ---------- #}
+  {% if l.salgsoppgave %}
+    {% set red_flags = l.salgsoppgave.get('red_flags') or [] %}
+    {% if red_flags %}
+      {%- set max_severity = 'low' -%}
+      {%- for f in red_flags -%}
+        {%- if f.severity == 'high' -%}{% set max_severity = 'high' %}{%- endif -%}
+        {%- if f.severity == 'medium' and max_severity != 'high' -%}{% set max_severity = 'medium' %}{%- endif -%}
+      {%- endfor -%}
+      <section class="eval-section red-flags red-flags-{{ max_severity }}">
+        <h2>🚩 Issues to know about ({{ red_flags|length }})</h2>
+        <ul class="red-flag-list">
+          {% for f in red_flags %}
+            <li class="red-flag red-flag-{{ f.severity }}">
+              <span class="red-flag-meta">
+                <span class="red-flag-severity">{{ f.severity }}</span>
+                <span class="red-flag-category">{{ f.category }}</span>
+              </span>
+              <div class="red-flag-body">
+                <strong class="red-flag-title">{{ f.title }}</strong>
+                <p class="red-flag-description">{{ f.description }}</p>
+              </div>
+            </li>
+          {% endfor %}
+        </ul>
+      </section>
+    {% else %}
+      <section class="eval-section red-flags red-flags-clean">
+        <h2>✓ No major issues identified</h2>
+        <p class="red-flags-clean-detail">
+          Salgsoppgave reviewed; nothing flagged across the technical, legal,
+          economic, or sameie categories
+          {% if l.salgsoppgave.get('extraction_confidence') is not none %}
+            (extraction confidence {{ '%.0f' % (l.salgsoppgave.extraction_confidence * 100) }}%)
+          {% endif %}.
+          Full text review still recommended before any offer.
+        </p>
+      </section>
+    {% endif %}
   {% endif %}
 
   {% if s.headline %}
@@ -212,94 +228,15 @@
     {% endfor %}
   </section>
 
-  {# ---------- salgsoppgave (broker-prospectus extraction) ---------- #}
-  {% if l.salgsoppgave %}
-  {% set sg = l.salgsoppgave %}
+  {# ---------- renovations (small dedicated section, salgsoppgave-derived) ---------- #}
+  {% if (l.salgsoppgave or {}).get('renovations') %}
   <section class="eval-section">
-    <h2>From the salgsoppgave
-      {% if sg.extraction_confidence is defined %}
-      <span class="llm-confidence-h">extraction confidence {{ '%.0f' % (sg.extraction_confidence * 100) }}%</span>
-      {% endif %}
-    </h2>
-    <dl class="llm-fields">
-      {% if sg.bedrooms_count is not none %}
-      <dt>Bedrooms (count)</dt><dd>{{ sg.bedrooms_count }}</dd>
-      {% endif %}
-      {% if sg.bedroom_sizes_m2 %}
-      <dt>Bedroom sizes (m²)</dt><dd>{{ sg.bedroom_sizes_m2 | join(", ") }}</dd>
-      {% endif %}
-      {% if sg.smallest_bedroom_m2 is not none %}
-      <dt>Smallest bedroom</dt><dd>{{ '%.1f' % sg.smallest_bedroom_m2 }} m²</dd>
-      {% endif %}
-      {% if sg.bedroom_quality_descriptor %}
-      <dt>Bedroom descriptor</dt><dd><em>{{ sg.bedroom_quality_descriptor }}</em></dd>
-      {% endif %}
-      {% if sg.bathrooms_count is not none or sg.wet_rooms_count is not none %}
-      <dt>Wet rooms / bathrooms</dt>
-      <dd>
-        {% if sg.wet_rooms_count is not none %}{{ sg.wet_rooms_count }} wet rooms{% endif %}
-        {% if sg.bathrooms_count is not none %}{% if sg.wet_rooms_count is not none %} · {% endif %}{{ sg.bathrooms_count }} bathroom(s){% endif %}
-      </dd>
-      {% endif %}
-      {% if sg.has_bod is not none %}
-      <dt>Bod (storage)</dt>
-      <dd>
-        {% if sg.has_bod %}
-          <span class="llm-yes">yes</span>{% if sg.bod_size_m2 %} · {{ '%.1f' % sg.bod_size_m2 }} m²{% endif %}
-        {% else %}<span class="llm-no">no</span>{% endif %}
-      </dd>
-      {% endif %}
-      {% if sg.has_washing_machine_connection is not none %}
-      <dt>Washing machine connection</dt>
-      <dd>
-        {% if sg.has_washing_machine_connection %}<span class="llm-yes">yes</span>
-        {% else %}<span class="llm-no">no</span>{% endif %}
-      </dd>
-      {% endif %}
-      {% if sg.floor is not none %}
-      <dt>Floor (etasje)</dt><dd>{{ sg.floor }}</dd>
-      {% endif %}
-      {% if sg.construction_year %}
-      <dt>Construction year</dt><dd>{{ sg.construction_year }}</dd>
-      {% endif %}
-      {% if sg.energy_class %}
-      <dt>Energy class</dt><dd>{{ sg.energy_class }}</dd>
-      {% endif %}
-      {% if sg.heating_type or sg.heating_details %}
-      <dt>Heating</dt>
-      <dd>
-        {% if sg.heating_type %}{{ sg.heating_type }}{% endif %}
-        {% if sg.heating_details %} — {{ sg.heating_details }}{% endif %}
-      </dd>
-      {% endif %}
-      {% if sg.felleskostnader_includes %}
-      <dt>Felleskostnader includes</dt>
-      <dd>{{ sg.felleskostnader_includes | join(", ") }}</dd>
-      {% endif %}
-      {% if sg.plot_size_m2 %}
-      <dt>Plot size</dt><dd>{{ '%.0f' % sg.plot_size_m2 }} m²</dd>
-      {% endif %}
-    </dl>
-    {% if sg.renovations %}
-    <h3>Renovation history</h3>
+    <h2>Renovations</h2>
     <ul class="salgs-renovations">
-      {% for r in sg.renovations %}
-        <li>{{ r.year }} — {{ r.what }}</li>
+      {% for r in l.salgsoppgave.renovations %}
+        <li><strong>{{ r.year }}</strong> — {{ r.what }}</li>
       {% endfor %}
     </ul>
-    {% endif %}
-    {% if sg.tg_issues %}
-    <h3>Tilstandsgrad (TG) issues</h3>
-    <ul class="salgs-tg">
-      {% for t in sg.tg_issues %}
-        <li class="tg-{{ t.tg }}">
-          <span class="tg-badge">TG{{ t.tg }}</span>
-          <span class="tg-what">{{ t.what }}</span>
-          {% if t.note %} — <span class="tg-note">{{ t.note }}</span>{% endif %}
-        </li>
-      {% endfor %}
-    </ul>
-    {% endif %}
   </section>
   {% endif %}
 
@@ -322,9 +259,6 @@
         ('ceiling_height_high', 'Ceilings ≥ 2.7 m'),
         ('has_bathtub', 'Bathtub'),
         ('has_bakgaard', 'Bakgård / private garden'),
-        ('heating_type', 'Heating type'),
-        ('felleskostnader_includes_heat', 'Felleskostnader includes heat'),
-        ('felleskostnader_includes_internet', 'Felleskostnader includes internet'),
         ('family_friendly', 'Family-friendly signals'),
         ('layout_clean', 'Clean layout'),
         ('layout_dealbreaker', 'Layout dealbreaker'),
@@ -341,6 +275,27 @@
           {%- endif -%}
         </dd>
       {% endfor %}
+      {# Heating — prefer salgsoppgave's authoritative read over the LLM
+         vibe-pass guess; the salgsoppgave actually quotes the technical
+         section, the LLM is inferring from marketing copy. #}
+      {% set sg_heat = (l.salgsoppgave or {}).get('heating_type') %}
+      {% set sg_heat_detail = (l.salgsoppgave or {}).get('heating_details') %}
+      {% set heat = sg_heat or l.llm.get('heating_type') %}
+      {% if heat or sg_heat_detail %}
+      <dt>Heating</dt>
+      <dd>
+        {% if heat %}<strong>{{ heat }}</strong>{% endif %}
+        {% if sg_heat_detail %}{% if heat %} — {% endif %}{{ sg_heat_detail }}{% endif %}
+        {% if sg_heat %}<span class="llm-source">(salgsoppgave)</span>{% endif %}
+      </dd>
+      {% endif %}
+      {# Felleskostnader inclusions — salgsoppgave list is more reliable
+         than the LLM yes/no booleans for individual items. #}
+      {% set sg_inc = (l.salgsoppgave or {}).get('felleskostnader_includes') %}
+      {% if sg_inc %}
+      <dt>Felleskostnader includes</dt>
+      <dd>{{ sg_inc | join(", ") }} <span class="llm-source">(salgsoppgave)</span></dd>
+      {% endif %}
     </dl>
   </section>
   {% endif %}

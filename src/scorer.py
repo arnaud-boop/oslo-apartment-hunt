@@ -550,6 +550,10 @@ def score_listing(
         details["Price per m²"] = f"{ppm:,.0f} NOK"
     if listing.get("plot_m2"):
         details["Plot size"] = f"{listing['plot_m2']:.0f} m²"
+    if listing.get("construction_year"):
+        details["Built"] = str(listing["construction_year"])
+    if listing.get("energy_class"):
+        details["Energy class"] = str(listing["energy_class"])
     ts = listing.get("timestamp_ms")
     if ts:
         try:
