@@ -279,6 +279,7 @@ def _deferred_rows(listing: dict, config: dict) -> list[dict]:
     smallest = salgs.get("smallest_bedroom_m2")
     if smallest is None and sizes:
         smallest = min(sizes)
+    descriptor = salgs.get("bedroom_quality_descriptor")
     if smallest is not None:
         sizes_str = ", ".join(f"{s:.1f}" for s in sizes) if sizes else ""
         if smallest >= 7:
@@ -292,6 +293,11 @@ def _deferred_rows(listing: dict, config: dict) -> list[dict]:
                 detail += f" (sizes: {sizes_str})"
             detail += "  · annotation only, listing not auto-dropped"
             out.append(_row("bedroom_min_m2", "Bedrooms ≥ 7 m² each", "fail", detail))
+    elif descriptor:
+        out.append(_row(
+            "bedroom_min_m2", "Bedrooms ≥ 7 m² each", "unverified",
+            f'salgsoppgave describes them as "{descriptor}" — sizes not given',
+        ))
     else:
         out.append(_row(
             "bedroom_min_m2", "Bedrooms ≥ 7 m² each", "unverified",

@@ -813,6 +813,86 @@ body[data-voting-active=""] .note-editor { display: none !important; }
   margin-left: 0.5rem;
 }
 
+/* red flags — prominent at top of eval page when buyer-relevant issues
+ * are present in the salgsoppgave. Border + accent color scale with the
+ * highest severity in the list. */
+.red-flags {
+  border-left: 4px solid var(--score-mid);
+  background: color-mix(in srgb, var(--score-mid) 8%, var(--bg-card));
+}
+.red-flags h2 {
+  border-left-color: var(--score-mid) !important;
+  font-size: 1.15rem;
+}
+.red-flags-medium {
+  border-left-color: var(--score-mid);
+  background: color-mix(in srgb, var(--score-mid) 10%, var(--bg-card));
+}
+.red-flags-medium h2 { border-left-color: var(--score-mid) !important; }
+.red-flags-high {
+  border-left-color: var(--score-low);
+  background: color-mix(in srgb, var(--score-low) 12%, var(--bg-card));
+}
+.red-flags-high h2 { border-left-color: var(--score-low) !important; }
+.red-flag-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.red-flag {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.6rem 0.85rem;
+  align-items: start;
+  padding: 0.55rem 0.7rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.red-flag-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.red-flag-severity {
+  display: inline-block;
+  padding: 0.1rem 0.45rem;
+  border-radius: 4px;
+  color: white;
+  font-weight: 700;
+}
+.red-flag-low    .red-flag-severity { background: var(--fg-faint); }
+.red-flag-medium .red-flag-severity { background: var(--score-mid); }
+.red-flag-high   .red-flag-severity { background: var(--score-low); }
+.red-flag-category {
+  color: var(--fg-faint);
+  text-align: center;
+  font-weight: 600;
+}
+.red-flag-body { min-width: 0; }
+.red-flag-title { color: var(--fg); font-size: 0.95rem; }
+.red-flag-description {
+  margin: 0.2rem 0 0;
+  color: var(--fg-muted);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+@media (max-width: 540px) {
+  .red-flag { grid-template-columns: 1fr; }
+  .red-flag-meta {
+    flex-direction: row;
+    gap: 0.5rem;
+    align-items: center;
+  }
+}
+
 /* salgsoppgave section: renovation list + TG badges */
 .salgs-renovations,
 .salgs-tg {

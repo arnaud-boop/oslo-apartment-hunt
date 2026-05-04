@@ -60,10 +60,10 @@ DEFAULT_MODEL = "claude-haiku-4-5-20251001"
 DEFAULT_TEMPERATURE = 0.1
 DEFAULT_MAX_TOKENS = 2048
 
-# Cap input at ~15 K tokens — many salgsoppgaves are 50-200 pages of legal
-# boilerplate; the relevant technical sections are usually within the first
-# 60 K characters.
-TEXT_CHAR_LIMIT = 60000
+# Cap input at ~20 K tokens — many salgsoppgaves are 50-200 pages of legal
+# boilerplate; bumping from 60K to 80K so red-flag-bearing sections
+# (sameie disputes, planned assessments) further into the doc make it in.
+TEXT_CHAR_LIMIT = 80000
 
 # Module singletons.
 _session: Optional[requests.Session] = None
@@ -100,6 +100,15 @@ EXTRACTION_TOOL = {
             "smallest_bedroom_m2": {
                 "type": ["number", "null"],
                 "description": "Size of the smallest bedroom in m².",
+            },
+            "bedroom_quality_descriptor": {
+                "type": ["string", "null"],
+                "description": (
+                    "Qualitative descriptor when m² sizes aren't given. "
+                    "E.g. 'gode soverom', 'romslige soverom', 'luftige', "
+                    "'små soverom', 'store soverom'. Quote the salgsoppgave "
+                    "wording where possible. Null only if no descriptor."
+                ),
             },
             "wet_rooms_count": {
                 "type": ["integer", "null"],
@@ -205,6 +214,48 @@ EXTRACTION_TOOL = {
                 "type": ["string", "null"],
                 "description": "Full address as stated in salgsoppgave.",
             },
+            "red_flags": {
+                "type": ["array", "null"],
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "category": {
+                            "type": "string",
+                            "enum": ["technical", "legal", "economic", "sameie", "other"],
+                        },
+                        "severity": {
+                            "type": "string",
+                            "enum": ["low", "medium", "high"],
+                        },
+                        "title": {
+                            "type": "string",
+                            "description": "Short title (≤ 8 words).",
+                        },
+                        "description": {
+                            "type": "string",
+                            "description": (
+                                "1-2 sentence summary of the issue and "
+                                "why a buyer should care."
+                            ),
+                        },
+                    },
+                    "required": ["category", "severity", "title", "description"],
+                },
+                "description": (
+                    "Significant issues a buyer should know about. "
+                    "TECHNICAL: TG3 ratings, structural problems, leaks, "
+                    "mold, urgent work needed.  LEGAL: lawsuits, "
+                    "encumbrances, easements, ongoing disputes.  ECONOMIC: "
+                    "planned major assessments the buyer will share, "
+                    "rapid fellesgjeld growth, large deferred maintenance, "
+                    "special-purpose collective loans.  SAMEIE: governance "
+                    "dysfunction, restrictive vedtekter that materially "
+                    "affect use, conflicts.  Skip routine TG2 wear unless "
+                    "it implies near-term cost. Be conservative — only "
+                    "list issues that genuinely matter to a buyer's "
+                    "decision."
+                ),
+            },
             "extraction_confidence": {
                 "type": "number",
                 "minimum": 0,
@@ -222,14 +273,54 @@ EXTRACTION_TOOL = {
 
 _SYSTEM = (
     "You're extracting structured data from a Norwegian salgsoppgave "
-    "(real-estate sales prospectus). The user will paste the document text; "
-    "you call the submit_salgsoppgave_extraction tool with the structured "
-    "fields.\n"
+    "(real-estate sales prospectus). Call the submit_salgsoppgave_extraction "
+    "tool with the structured fields.\n"
     "\n"
-    "Be conservative. Use null when the doc doesn't clearly state a value. "
-    "Don't guess from implications. The document may be 50-200 pages of "
-    "legal boilerplate — focus on the technical sections (Tilstand, Standard, "
-    "Areal, Rom-for-rom) for the per-room and per-system data."
+    "Rule of thumb: be CONSERVATIVE about inference, but TRUST explicit "
+    "statements even when brief.\n"
+    "\n"
+    "EXTRACTION PATTERNS:\n"
+    "\n"
+    "Wet rooms / bathrooms:\n"
+    "  - 'Bad 1' alone (no Bad 2 anywhere) → bathrooms_count=1\n"
+    "  - 'Bad 1' + 'Bad 2' → bathrooms_count=2\n"
+    "  - 'WC' or 'separat toalett' as separate room → adds to wet_rooms_count\n"
+    "  - wet_rooms_count = bathrooms + standalone WCs\n"
+    "  - When the doc lists exactly one bathroom and no separate WC, set "
+    "wet_rooms_count=1 (don't return null).\n"
+    "\n"
+    "Bod (storage):\n"
+    "  - 'Bod', 'Kjellerbod', 'Loftbod', 'Sportsbod', 'Innvendig bod' anywhere "
+    "→ has_bod=true\n"
+    "  - 'Stor kjellerbod (10 kvm)' → has_bod=true, bod_size_m2=10\n"
+    "  - Only return false if the doc explicitly says no storage exists\n"
+    "\n"
+    "Bedrooms:\n"
+    "  - Per-room sizes given (e.g. 'Soverom 1: 12,5 kvm') → bedroom_sizes_m2 "
+    "with each value, smallest_bedroom_m2 with the min\n"
+    "  - Only count given (e.g. '4 soverom', '4 gode soverom') → "
+    "bedroom_sizes_m2=null AND bedroom_quality_descriptor='gode soverom' "
+    "(quote the wording)\n"
+    "  - 'hvorav 1 med hemsløsning' is meaningful — note that the smallest "
+    "bedroom may be a loft/mezzanine; reflect in the descriptor\n"
+    "\n"
+    "Red flags — items a buyer would want to know upfront:\n"
+    "  - TG3 anywhere → high-severity technical flag\n"
+    "  - TG2 implying near-term cost (roof, foundation, plumbing, electrical) "
+    "→ medium technical flag\n"
+    "  - Routine TG2 wear (paint, surface scratches) → skip\n"
+    "  - 'Pålegg' from kommune, ongoing or recent lawsuits, easements that "
+    "constrain use → legal flag\n"
+    "  - Planned major sameie work the buyer will pay for → economic flag\n"
+    "  - High collective debt or rapid debt growth → economic flag\n"
+    "  - Sameie governance problems / restrictive vedtekter → sameie flag\n"
+    "  Each red_flag: category, severity, short title, 1-2 sentence "
+    "description with concrete details from the doc.\n"
+    "\n"
+    "Use null only when the doc is genuinely silent — not when you have "
+    "to do light interpretation. The document may be 50-200 pages of "
+    "legal boilerplate — focus on Tilstand, Standard, Areal, Rom-for-rom, "
+    "Sameiet, Økonomi, Servitutter, and Diverse sections."
 )
 
 

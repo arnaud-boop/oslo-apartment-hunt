@@ -87,6 +87,33 @@
     </div>
   </section>
 
+  {# ---------- red flags (prominent — buyer should see these first) ---------- #}
+  {% set red_flags = (l.salgsoppgave or {}).get('red_flags') or [] %}
+  {% if red_flags %}
+  {%- set max_severity = 'low' -%}
+  {%- for f in red_flags -%}
+    {%- if f.severity == 'high' -%}{% set max_severity = 'high' %}{%- endif -%}
+    {%- if f.severity == 'medium' and max_severity != 'high' -%}{% set max_severity = 'medium' %}{%- endif -%}
+  {%- endfor -%}
+  <section class="eval-section red-flags red-flags-{{ max_severity }}">
+    <h2>🚩 Issues to know about ({{ red_flags|length }})</h2>
+    <ul class="red-flag-list">
+      {% for f in red_flags %}
+        <li class="red-flag red-flag-{{ f.severity }}">
+          <span class="red-flag-meta">
+            <span class="red-flag-severity">{{ f.severity }}</span>
+            <span class="red-flag-category">{{ f.category }}</span>
+          </span>
+          <div class="red-flag-body">
+            <strong class="red-flag-title">{{ f.title }}</strong>
+            <p class="red-flag-description">{{ f.description }}</p>
+          </div>
+        </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
   {% if s.headline %}
   <p class="eval-vibe">{{ s.headline }}</p>
   {% endif %}
@@ -203,6 +230,9 @@
       {% endif %}
       {% if sg.smallest_bedroom_m2 is not none %}
       <dt>Smallest bedroom</dt><dd>{{ '%.1f' % sg.smallest_bedroom_m2 }} m²</dd>
+      {% endif %}
+      {% if sg.bedroom_quality_descriptor %}
+      <dt>Bedroom descriptor</dt><dd><em>{{ sg.bedroom_quality_descriptor }}</em></dd>
       {% endif %}
       {% if sg.bathrooms_count is not none or sg.wet_rooms_count is not none %}
       <dt>Wet rooms / bathrooms</dt>
