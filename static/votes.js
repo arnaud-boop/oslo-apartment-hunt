@@ -60,6 +60,50 @@
   // acknowledged state (e.g. 5 new total but you've already acked 2 → 3).
   refreshBannerCount();
 
+  // Photo carousels (eval pages only — querySelector finds nothing on the
+  // digest, so this is a safe no-op there).
+  initCarousels();
+
+  function initCarousels() {
+    document.querySelectorAll("[data-carousel]").forEach(function (strip) {
+      const dotsContainer = strip.parentElement.querySelector("[data-carousel-dots]");
+      const slides = Array.prototype.slice.call(strip.querySelectorAll(".photo-slide"));
+      const dots = dotsContainer
+        ? Array.prototype.slice.call(dotsContainer.querySelectorAll(".photo-dot"))
+        : [];
+      if (slides.length < 2) return;
+
+      // Click a dot → smooth-scroll the strip to align that slide.
+      dots.forEach(function (dot, i) {
+        dot.addEventListener("click", function () {
+          const slide = slides[i];
+          if (!slide) return;
+          // Use scrollLeft instead of scrollIntoView, since scrollIntoView
+          // can scroll the page itself when the strip is partially off-screen.
+          strip.scrollTo({ left: slide.offsetLeft - strip.offsetLeft, behavior: "smooth" });
+        });
+      });
+
+      // Watch which slide is mostly visible; mark the corresponding dot active.
+      if ("IntersectionObserver" in window) {
+        const io = new IntersectionObserver(
+          function (entries) {
+            entries.forEach(function (entry) {
+              if (entry.intersectionRatio < 0.55) return;
+              const idx = slides.indexOf(entry.target);
+              if (idx < 0) return;
+              dots.forEach(function (d, i) {
+                d.classList.toggle("active", i === idx);
+              });
+            });
+          },
+          { root: strip, threshold: [0.55, 0.75] }
+        );
+        slides.forEach(function (s) { io.observe(s); });
+      }
+    });
+  }
+
   function fetchAllVotes() {
     fetch(ENDPOINT, { method: "GET", cache: "no-cache" })
       .then(function (r) {

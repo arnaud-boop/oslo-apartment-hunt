@@ -25,18 +25,37 @@
       {% if arnaud_acked %}data-arnaud-acked="1"{% endif %}
       {% if celine_acked %}data-celine-acked="1"{% endif %}>
 
-  {# ---------- photo strip ---------- #}
+  {# ---------- photo carousel ---------- #}
   {% if l.image_urls %}
+  {% set photos_in_carousel = l.image_urls[:10] %}
+  {% set has_more = l.image_urls|length > 10 %}
   <section class="eval-photos">
-    {% for img in l.image_urls[:4] %}
-      <a href="{{ l.url }}" target="_blank" rel="noopener">
-        <img src="{{ img }}" alt="" loading="lazy">
-      </a>
-    {% endfor %}
-    {% if l.image_urls|length > 4 %}
-      <a href="{{ l.url }}" target="_blank" rel="noopener" class="more-photos">
-        +{{ l.image_urls|length - 4 }} more on Finn →
-      </a>
+    <div class="photo-strip" data-carousel>
+      {% for img in photos_in_carousel %}
+      <div class="photo-slide">
+        <a href="{{ l.url }}" target="_blank" rel="noopener" aria-label="View on Finn">
+          <img src="{{ img }}" alt="" loading="lazy">
+        </a>
+      </div>
+      {% endfor %}
+      {% if has_more %}
+      <div class="photo-slide photo-more">
+        <a href="{{ l.url }}" target="_blank" rel="noopener">
+          +{{ l.image_urls|length - 10 }} more<br>on Finn →
+        </a>
+      </div>
+      {% endif %}
+    </div>
+    {% set dot_count = (photos_in_carousel|length) + (1 if has_more else 0) %}
+    {% if dot_count > 1 %}
+    <div class="photo-dots" data-carousel-dots>
+      {% for i in range(dot_count) %}
+        <button class="photo-dot{% if loop.first %} active{% endif %}"
+                data-photo-index="{{ i }}"
+                type="button"
+                aria-label="Photo {{ i + 1 }} of {{ dot_count }}"></button>
+      {% endfor %}
+    </div>
     {% endif %}
   </section>
   {% endif %}

@@ -257,6 +257,20 @@ def extract_enrichment(ad: dict) -> dict:
     out["property_type_detail"] = ad.get("propertyType")
     out["ownership_type_detail"] = ad.get("ownershipType")
 
+    # Detail-page image URLs — far richer than the 3-photo set the search
+    # results page exposes. Ad has up to 50+ images. Override the search-
+    # result value with this richer list (downstream eval-page carousel
+    # uses up to 10).
+    detail_images = ad.get("images") or []
+    detail_image_urls = []
+    for img in detail_images:
+        if isinstance(img, dict) and img.get("url"):
+            detail_image_urls.append(img["url"])
+        elif isinstance(img, str):
+            detail_image_urls.append(img)
+    if detail_image_urls:
+        out["image_urls"] = detail_image_urls
+
     # Selected generalText sections — useful context for LLM analysis.
     # (Not all sections; the boring legal/admin ones are skipped.)
     INTERESTING = {

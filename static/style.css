@@ -570,37 +570,84 @@ body[data-voting-active=""] .note-editor { display: none !important; }
   gap: 1.25rem;
 }
 
+/* photo carousel — CSS scroll-snap + JS-driven dot indicators */
 .eval-photos {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  display: flex;
+  flex-direction: column;
   gap: 0.4rem;
-  align-items: stretch;
 }
-.eval-photos a {
-  display: block;
+.photo-strip {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding: 0.1rem 0.1rem 0.4rem;
+  margin: -0.1rem;
+}
+.photo-strip::-webkit-scrollbar { display: none; }
+.photo-slide {
+  flex: 0 0 100%;
+  scroll-snap-align: center;
+  scroll-snap-stop: always;
   aspect-ratio: 4/3;
+  border-radius: 8px;
   overflow: hidden;
-  border-radius: 6px;
   background: var(--border);
+  max-height: 480px;
 }
-.eval-photos img {
+.photo-slide a {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.photo-slide img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
 }
-.eval-photos .more-photos {
+.photo-slide.photo-more a {
   display: flex;
   align-items: center;
   justify-content: center;
   background: var(--tag-bg);
   color: var(--fg);
-  font-size: 0.92rem;
+  font-size: 1rem;
   text-decoration: none;
-  border-radius: 6px;
-  padding: 0.5rem;
   text-align: center;
+  font-weight: 500;
 }
+.photo-dots {
+  display: flex;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.2rem 0 0.5rem;
+}
+.photo-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--border-strong);
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  transition: background 200ms, transform 200ms;
+  /* expand the click target without enlarging the visual dot */
+  position: relative;
+}
+.photo-dot::before {
+  content: "";
+  position: absolute;
+  inset: -8px;
+}
+.photo-dot.active {
+  background: var(--accent);
+  transform: scale(1.35);
+}
+.photo-dot:hover { background: var(--fg-muted); }
 
 .eval-title-block {
   display: flex;

@@ -169,25 +169,9 @@
       </p>
       {% endif %}
 
-      {% if s.details %}
-      <details class="card-details" open>
-        <summary>Computed details (proxy times, ±20%)</summary>
-        <dl>
-          {% for k, v in s.details.items() %}
-          <dt>{{ k }}</dt><dd>{{ v }}</dd>
-          {% endfor %}
-        </dl>
-      </details>
-      {% endif %}
+      {# Computed details + unverified list moved to eval page only —
+         keeps the digest cards scannable. #}
 
-      {% if s.unverified %}
-      <details class="card-unverified">
-        <summary>⚠️ {{ s.unverified|length }} unverified — what we couldn't check</summary>
-        <ul>
-          {% for u in s.unverified %}<li>{{ u }}</li>{% endfor %}
-        </ul>
-      </details>
-      {% endif %}
 
       <div class="voting-block" data-finn-id="{{ l.finn_id }}">
         {% for v in ('arnaud', 'celine') %}
