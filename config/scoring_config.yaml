@@ -196,6 +196,19 @@ tags:
 
 
 # ============================================================================
+# Voting backend (v1.1) — Google Sheets via Apps Script Web App.
+# Set web_app_url after deploying apps_script/Code.gs as a Web app.
+# Both partners load the digest at the same URL but with ?v=arnaud or
+# ?v=celine to identify themselves. URL is technically discoverable from
+# the deployed JS, so don't treat it as secret — but obscure-by-default
+# is enough security for a 2-user private digest.
+# ============================================================================
+voting:
+  active: true
+  web_app_url: "https://script.google.com/macros/s/AKfycbx9kZFwc8valJhPAc9CIz1EvkYgTtOcTrKVK8hd94ppkR3n4hdV1eIXb7HkAY7F_fFgKA/exec"   # paste the Apps Script Web app URL here once deployed
+
+
+# ============================================================================
 # LLM analysis (v1.1) — Claude-driven extraction of qualitative signals.
 # Reads listing description + structured Norwegian fact-table sections,
 # returns vibe summary, layout dealbreakers, light/orientation, etc.

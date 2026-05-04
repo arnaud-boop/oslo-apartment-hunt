@@ -30,6 +30,7 @@ from src.filters import apply_hard_filters, load_config
 from src.generator import render
 from src.llm import analyze_listings
 from src.scorer import score_listings
+from src.votes import fetch_votes
 
 logger = logging.getLogger(__name__)
 
@@ -173,6 +174,9 @@ def main() -> int:
     logger.info("=== 6/6 Render HTML ===")
     out_dir = repo_root / "dist"
     final_dropped = scraped_count - len(scored)
+    voting_cfg = config.get("voting", {}) or {}
+    voting_endpoint = voting_cfg.get("web_app_url", "") or ""
+    votes = fetch_votes(voting_endpoint) if voting_endpoint else {}
     render(
         [s.to_dict() for s in scored],
         repo_root,
@@ -180,6 +184,8 @@ def main() -> int:
         dropped_count=final_dropped,
         run_dt=datetime.now(timezone.utc),
         out_dir=out_dir,
+        votes=votes,
+        voting_endpoint=voting_endpoint,
     )
 
     logger.info(

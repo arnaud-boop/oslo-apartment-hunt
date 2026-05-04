@@ -32,7 +32,7 @@
 <main class="listings">
   {% for s in scored %}
   {% set l = s.listing %}
-  <article class="listing-card" id="finn-{{ l.finn_id }}">
+  <article class="listing-card" id="finn-{{ l.finn_id }}" data-finn-id="{{ l.finn_id }}">
     <div class="card-photo">
       {% if l.image_url %}
         <img src="{{ l.image_url }}" alt="" loading="lazy">
@@ -170,6 +170,31 @@
       </details>
       {% endif %}
 
+      {% set vote_state = votes.get(l.finn_id) if votes else None %}
+      <div class="voting-block" data-finn-id="{{ l.finn_id }}">
+        {% for v in ('arnaud', 'celine') %}
+          {% set vstate = (vote_state.get(v) if vote_state else {}) or {} %}
+          <div class="vote-column" data-voter="{{ v }}">
+            <span class="vote-label">{{ 'Arnaud' if v == 'arnaud' else 'Céline' }}</span>
+            <button class="vote-btn{% if vstate.vote == 'up'   %} active{% endif %}"
+                    data-vote-button="up"   data-voter="{{ v }}">👍</button>
+            <button class="vote-btn{% if vstate.vote == 'down' %} active{% endif %}"
+                    data-vote-button="down" data-voter="{{ v }}">👎</button>
+            <button class="vote-btn note-btn" data-note-toggle data-voter="{{ v }}">💬</button>
+            <span class="note-display{% if not vstate.note %} empty{% endif %}">{{ vstate.note or '' }}</span>
+          </div>
+        {% endfor %}
+        <div class="note-editor">
+          {% set my_note = (vote_state.get('arnaud') or {}).get('note', '') if vote_state else '' %}
+          <textarea data-note-input rows="2" placeholder="Add a note...">{{ my_note }}</textarea>
+          <div class="note-editor-actions">
+            <button data-note-save  class="note-action-btn save">Save</button>
+            <button data-note-cancel class="note-action-btn cancel">Cancel</button>
+          </div>
+        </div>
+        <span class="vote-status" aria-live="polite"></span>
+      </div>
+
       <p class="card-link">
         <a href="{{ l.url }}" target="_blank" rel="noopener">→ View on Finn (#{{ l.finn_id }})</a>
       </p>
@@ -185,6 +210,11 @@
     <a href="https://github.com/arnaud-boop/oslo-apartment-hunt" target="_blank" rel="noopener">repo</a>
   </p>
 </footer>
+
+<script>
+  window.VOTING_ENDPOINT = {{ voting_endpoint | tojson }};
+</script>
+<script src="votes.js" defer></script>
 
 </body>
 </html>

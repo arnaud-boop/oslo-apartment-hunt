@@ -368,6 +368,135 @@ a:hover { color: var(--accent-hover); }
   font-size: 0.88rem;
 }
 
+/* ----- voting block ----- */
+
+.voting-block {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem 1rem;
+  border-top: 1px dashed var(--border);
+  padding-top: 0.6rem;
+  margin-top: 0.2rem;
+  font-size: 0.85rem;
+  position: relative;
+}
+.vote-column {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+}
+.vote-label {
+  font-weight: 600;
+  color: var(--fg-muted);
+  margin-right: 0.2rem;
+  min-width: 3rem;
+}
+.vote-btn {
+  background: var(--tag-bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.15rem 0.55rem;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1.2;
+  color: var(--fg);
+  transition: background 120ms, border-color 120ms;
+}
+.vote-btn:hover { border-color: var(--border-strong); }
+.vote-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+.vote-btn.note-btn { font-size: 0.95rem; }
+
+.note-display {
+  flex: 1 1 100%;
+  font-size: 0.82rem;
+  color: var(--fg);
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin-top: 0.15rem;
+  padding-left: 0.1rem;
+  font-style: italic;
+}
+.note-display.empty { display: none; }
+
+.note-editor {
+  grid-column: 1 / -1;
+  display: none;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.3rem;
+}
+.note-editor.expanded { display: flex; }
+.note-editor textarea {
+  width: 100%;
+  font: inherit;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  padding: 0.4rem 0.5rem;
+  resize: vertical;
+}
+.note-editor-actions {
+  display: flex;
+  gap: 0.4rem;
+}
+.note-action-btn {
+  padding: 0.2rem 0.7rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font: inherit;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-card);
+  color: var(--fg);
+}
+.note-action-btn.save {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+
+/* Read-only mode: when this column isn't yours, dim the buttons. JS toggles
+ * body[data-voter] based on the URL ?v= param. */
+body[data-voter="arnaud"] .vote-column[data-voter="celine"] .vote-btn,
+body[data-voter="celine"] .vote-column[data-voter="arnaud"] .vote-btn {
+  cursor: default;
+  pointer-events: none;
+  opacity: 0.7;
+}
+/* When no voter at all (no ?v=), everything is read-only. */
+body:not([data-voting-active]) .vote-btn,
+body[data-voting-active=""] .vote-btn {
+  cursor: default;
+  pointer-events: none;
+  opacity: 0.7;
+}
+body:not([data-voting-active]) .note-editor,
+body[data-voting-active=""] .note-editor { display: none !important; }
+
+/* Status indicator (the spinner / checkmark dot in the corner). */
+.vote-status {
+  position: absolute;
+  top: 0.4rem;
+  right: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: transparent;
+  transition: background 200ms;
+}
+.vote-status.pending { background: var(--score-mid); }
+.vote-status.ok      { background: var(--score-high); }
+.vote-status.err     { background: var(--score-low); }
+
+@media (max-width: 540px) {
+  .voting-block { grid-template-columns: 1fr; }
+}
+
 /* ----- footer ----- */
 
 .page-footer {

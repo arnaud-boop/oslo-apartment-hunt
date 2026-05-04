@@ -76,6 +76,8 @@ def render(
     dropped_count: int,
     run_dt: datetime,
     out_dir: Path,
+    votes: dict | None = None,
+    voting_endpoint: str = "",
 ) -> Path:
     template_dir = repo_root / "templates"
     static_dir = repo_root / "static"
@@ -101,6 +103,8 @@ def render(
         run_iso=run_dt.isoformat(timespec="seconds"),
         run_human=run_dt.strftime("%a %d %b %Y, %H:%M"),
         run_date=run_dt.strftime("%Y-%m-%d"),
+        votes=votes or {},
+        voting_endpoint=voting_endpoint or "",
     )
 
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -108,9 +112,10 @@ def render(
     index_path.write_text(html, encoding="utf-8")
 
     # Copy static assets next to the HTML.
-    css_src = static_dir / "style.css"
-    if css_src.exists():
-        shutil.copy2(css_src, out_dir / "style.css")
+    for asset in ("style.css", "votes.js"):
+        src = static_dir / asset
+        if src.exists():
+            shutil.copy2(src, out_dir / asset)
 
     logger.info(
         "Wrote %s (%d listings, %d KB)",
