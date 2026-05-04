@@ -216,6 +216,29 @@
   {% endfor %}
 </main>
 
+{% if scored_hidden %}
+<details class="hidden-listings-footer">
+  <summary>
+    🙅 Hidden — both downvoted: <strong>{{ scored_hidden|length }}</strong>
+    listing{% if scored_hidden|length != 1 %}s{% endif %} · click to expand
+  </summary>
+  <ul class="hidden-listings-list">
+    {% for s in scored_hidden %}
+      {% set hl = s.listing %}
+      <li>
+        <a class="eval-link" href="listings/{{ hl.finn_id }}.html">
+          {{ hl.title or '(no title)' }}
+        </a>
+        <span class="hidden-listing-meta">
+          {%- if hl.address %} · {{ hl.address }}{% endif -%}
+          {%- if hl.total_price %} · {{ fmt_nok(hl.total_price) }} NOK{% endif -%}
+        </span>
+      </li>
+    {% endfor %}
+  </ul>
+</details>
+{% endif %}
+
 <footer class="page-footer">
   <p>
     Generated {{ run_iso }} ·

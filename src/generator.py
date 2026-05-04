@@ -112,20 +112,39 @@ def render(
     template = env.get_template("index.html.j2")
 
     new_in_batch_set = set(str(x) for x in (new_in_batch or set()))
-    # Count how many of the rendered listings are new arrivals.
+
+    # Split scored listings: anything where BOTH partners voted 👎 is moved
+    # out of the main digest and into a collapsed footer. Eval pages still
+    # generate (so direct links keep working — votes can change).
+    votes_dict = votes or {}
+    visible: list[dict] = []
+    hidden: list[dict] = []
+    for s in scored:
+        fid = str((s.get("listing") or {}).get("finn_id") or "")
+        vstate = votes_dict.get(fid) or {}
+        a_vote = ((vstate.get("arnaud") or {}).get("vote") or "").lower()
+        c_vote = ((vstate.get("celine") or {}).get("vote") or "").lower()
+        if a_vote == "down" and c_vote == "down":
+            hidden.append(s)
+        else:
+            visible.append(s)
+
+    # Count NEW arrivals among visible only — that's what the banner reflects.
     new_in_batch_visible = sum(
-        1 for s in scored if str((s.get("listing") or {}).get("finn_id") or "") in new_in_batch_set
+        1 for s in visible
+        if str((s.get("listing") or {}).get("finn_id") or "") in new_in_batch_set
     )
 
     html = template.render(
-        scored=scored,
+        scored=visible,
+        scored_hidden=hidden,
         scraped_count=scraped_count,
         dropped_count=dropped_count,
-        kept_count=len(scored),
+        kept_count=len(visible),
         run_iso=run_dt.isoformat(timespec="seconds"),
         run_human=run_dt.strftime("%a %d %b %Y, %H:%M"),
         run_date=run_dt.strftime("%Y-%m-%d"),
-        votes=votes or {},
+        votes=votes_dict,
         voting_endpoint=voting_endpoint or "",
         new_in_batch=new_in_batch_set,
         new_in_batch_count=new_in_batch_visible,
