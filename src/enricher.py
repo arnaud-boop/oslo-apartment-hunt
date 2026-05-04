@@ -257,6 +257,11 @@ def extract_enrichment(ad: dict) -> dict:
     out["property_type_detail"] = ad.get("propertyType")
     out["ownership_type_detail"] = ad.get("ownershipType")
 
+    # Salgsoppgave URL — broker's full sales prospectus. Used by
+    # src.salgsoppgave to fetch and extract structured details (bedroom
+    # sizes, wet-rooms count, TG ratings, renovation history, etc.).
+    out["prospectus_url"] = ad.get("prospectusView") or None
+
     # Detail-page image URLs — far richer than the 3-photo set the search
     # results page exposes. Ad has up to 50+ images. Override the search-
     # result value with this richer list (downstream eval-page carousel

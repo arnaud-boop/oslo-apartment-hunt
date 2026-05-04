@@ -209,6 +209,22 @@ voting:
 
 
 # ============================================================================
+# Salgsoppgave extraction (v1.2+) — fetch each listing's broker prospectus,
+# extract structured facts via Claude (Haiku, cheap structured-extraction).
+# Feeds the criteria checklist (bedroom sizes, wet rooms, bod, washing
+# machine) and surfaces extra detail (TG ratings, renovation history,
+# heating, fellesutgifter inclusions). Per project policy these are
+# annotation-only — listings are NOT auto-dropped based on salgsoppgave
+# data. v1.3+ may flip selected items into hard filters once the data
+# proves reliable across broker variants.
+# ============================================================================
+salgsoppgave:
+  active: true
+  model: claude-haiku-4-5-20251001
+  # Cost estimate: ~$0.50-1 per fresh full run, near zero with cache.
+
+
+# ============================================================================
 # LLM analysis (v1.1) — Claude-driven extraction of qualitative signals.
 # Reads listing description + structured Norwegian fact-table sections,
 # returns vibe summary, layout dealbreakers, light/orientation, etc.

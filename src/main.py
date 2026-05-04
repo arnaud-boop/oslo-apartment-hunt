@@ -30,6 +30,7 @@ from src.filters import apply_hard_filters, load_config
 from src.generator import render
 from src.history import update_history
 from src.llm import analyze_listings
+from src.salgsoppgave import enrich_with_salgsoppgave
 from src.scorer import score_listings
 from src.votes import fetch_votes
 
@@ -125,6 +126,19 @@ def main() -> int:
         enriched = enrich_listings(pass1_kept)
         _save_json(enriched_path, enriched)
 
+    # -------------------------------------- 3.4 SALGSOPPGAVE EXTRACTION ----
+    # Fetch + LLM-extract structured facts from each listing's broker
+    # salgsoppgave (full sales prospectus). Feeds the criteria checklist
+    # (bedroom sizes, wet rooms, bod, washing machine) and provides richer
+    # context (TG ratings, renovation history, heating details, etc.).
+    salgs_cfg = config.get("salgsoppgave", {}) or {}
+    if salgs_cfg.get("active", True):
+        logger.info("=== 3.4/6 Salgsoppgave extraction (broker prospectus) ===")
+        enriched = enrich_with_salgsoppgave(enriched, config=config)
+        _save_json(enriched_path, enriched)
+    else:
+        logger.info("Salgsoppgave extraction disabled in config — skipping")
+
     # ------------------------------------------ 3.5 LLM ANALYSIS PASS ----
     # Optional. Skipped silently if ANTHROPIC_API_KEY is not set or the
     # llm config section is `active: false`.
@@ -134,7 +148,6 @@ def main() -> int:
             "=== 3.5/6 LLM analysis (vibe + layout dealbreaker + apartment signals) ==="
         )
         enriched = analyze_listings(enriched, config=llm_cfg)
-        # Persist enriched + llm so SKIP_ENRICH=1 reruns can use them.
         _save_json(enriched_path, enriched)
     else:
         logger.info("LLM analysis disabled in config — skipping")

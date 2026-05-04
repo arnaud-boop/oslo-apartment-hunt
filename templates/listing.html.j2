@@ -185,6 +185,94 @@
     {% endfor %}
   </section>
 
+  {# ---------- salgsoppgave (broker-prospectus extraction) ---------- #}
+  {% if l.salgsoppgave %}
+  {% set sg = l.salgsoppgave %}
+  <section class="eval-section">
+    <h2>From the salgsoppgave
+      {% if sg.extraction_confidence is defined %}
+      <span class="llm-confidence-h">extraction confidence {{ '%.0f' % (sg.extraction_confidence * 100) }}%</span>
+      {% endif %}
+    </h2>
+    <dl class="llm-fields">
+      {% if sg.bedrooms_count is not none %}
+      <dt>Bedrooms (count)</dt><dd>{{ sg.bedrooms_count }}</dd>
+      {% endif %}
+      {% if sg.bedroom_sizes_m2 %}
+      <dt>Bedroom sizes (m²)</dt><dd>{{ sg.bedroom_sizes_m2 | join(", ") }}</dd>
+      {% endif %}
+      {% if sg.smallest_bedroom_m2 is not none %}
+      <dt>Smallest bedroom</dt><dd>{{ '%.1f' % sg.smallest_bedroom_m2 }} m²</dd>
+      {% endif %}
+      {% if sg.bathrooms_count is not none or sg.wet_rooms_count is not none %}
+      <dt>Wet rooms / bathrooms</dt>
+      <dd>
+        {% if sg.wet_rooms_count is not none %}{{ sg.wet_rooms_count }} wet rooms{% endif %}
+        {% if sg.bathrooms_count is not none %}{% if sg.wet_rooms_count is not none %} · {% endif %}{{ sg.bathrooms_count }} bathroom(s){% endif %}
+      </dd>
+      {% endif %}
+      {% if sg.has_bod is not none %}
+      <dt>Bod (storage)</dt>
+      <dd>
+        {% if sg.has_bod %}
+          <span class="llm-yes">yes</span>{% if sg.bod_size_m2 %} · {{ '%.1f' % sg.bod_size_m2 }} m²{% endif %}
+        {% else %}<span class="llm-no">no</span>{% endif %}
+      </dd>
+      {% endif %}
+      {% if sg.has_washing_machine_connection is not none %}
+      <dt>Washing machine connection</dt>
+      <dd>
+        {% if sg.has_washing_machine_connection %}<span class="llm-yes">yes</span>
+        {% else %}<span class="llm-no">no</span>{% endif %}
+      </dd>
+      {% endif %}
+      {% if sg.floor is not none %}
+      <dt>Floor (etasje)</dt><dd>{{ sg.floor }}</dd>
+      {% endif %}
+      {% if sg.construction_year %}
+      <dt>Construction year</dt><dd>{{ sg.construction_year }}</dd>
+      {% endif %}
+      {% if sg.energy_class %}
+      <dt>Energy class</dt><dd>{{ sg.energy_class }}</dd>
+      {% endif %}
+      {% if sg.heating_type or sg.heating_details %}
+      <dt>Heating</dt>
+      <dd>
+        {% if sg.heating_type %}{{ sg.heating_type }}{% endif %}
+        {% if sg.heating_details %} — {{ sg.heating_details }}{% endif %}
+      </dd>
+      {% endif %}
+      {% if sg.felleskostnader_includes %}
+      <dt>Felleskostnader includes</dt>
+      <dd>{{ sg.felleskostnader_includes | join(", ") }}</dd>
+      {% endif %}
+      {% if sg.plot_size_m2 %}
+      <dt>Plot size</dt><dd>{{ '%.0f' % sg.plot_size_m2 }} m²</dd>
+      {% endif %}
+    </dl>
+    {% if sg.renovations %}
+    <h3>Renovation history</h3>
+    <ul class="salgs-renovations">
+      {% for r in sg.renovations %}
+        <li>{{ r.year }} — {{ r.what }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    {% if sg.tg_issues %}
+    <h3>Tilstandsgrad (TG) issues</h3>
+    <ul class="salgs-tg">
+      {% for t in sg.tg_issues %}
+        <li class="tg-{{ t.tg }}">
+          <span class="tg-badge">TG{{ t.tg }}</span>
+          <span class="tg-what">{{ t.what }}</span>
+          {% if t.note %} — <span class="tg-note">{{ t.note }}</span>{% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </section>
+  {% endif %}
+
   {# ---------- LLM analysis ---------- #}
   {% if l.llm %}
   <section class="eval-section">

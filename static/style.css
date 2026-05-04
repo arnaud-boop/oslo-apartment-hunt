@@ -813,6 +813,51 @@ body[data-voting-active=""] .note-editor { display: none !important; }
   margin-left: 0.5rem;
 }
 
+/* salgsoppgave section: renovation list + TG badges */
+.salgs-renovations,
+.salgs-tg {
+  list-style: none;
+  margin: 0.4rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.88rem;
+}
+.salgs-renovations li {
+  color: var(--fg);
+}
+.salgs-tg li {
+  display: grid;
+  grid-template-columns: max-content max-content 1fr;
+  gap: 0.5rem;
+  align-items: baseline;
+}
+.tg-badge {
+  display: inline-block;
+  padding: 0.05rem 0.5rem;
+  border-radius: 4px;
+  font-weight: 700;
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  color: white;
+}
+.tg-1 .tg-badge { background: var(--score-high); }
+.tg-2 .tg-badge { background: var(--score-mid); }
+.tg-3 .tg-badge { background: var(--score-low); }
+.tg-what { color: var(--fg); font-weight: 500; }
+.tg-note { color: var(--fg-muted); font-size: 0.85rem; }
+
+@media (max-width: 540px) {
+  .salgs-tg li {
+    grid-template-columns: max-content 1fr;
+  }
+  .salgs-tg .tg-note {
+    grid-column: 1 / -1;
+    padding-left: 4rem;
+  }
+}
+
 /* description collapsible */
 .eval-description summary {
   cursor: pointer;

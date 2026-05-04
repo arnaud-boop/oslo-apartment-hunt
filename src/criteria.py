@@ -261,28 +261,94 @@ def _check_layout_dealbreaker(listing: dict, config: dict) -> dict:
 
 
 def _deferred_rows(listing: dict, config: dict) -> list[dict]:
-    """Rules listed in config with active:false and no per-listing data path."""
+    """Annotation-only rows.
+
+    These rules are not (yet) hard filters — they don't drop listings.
+    Instead the row reflects what we know:
+      - "pass"   if salgsoppgave-extracted data clearly satisfies the rule
+      - "fail"   if salgsoppgave-extracted data clearly violates it
+                 (the listing still appears in the digest — annotation only)
+      - "unverified" if the salgsoppgave didn't say (or failed to fetch)
+      - "deferred"   if we have no path to the data at all (e.g. grocery)
+    """
     out = []
-    out.append(_row(
-        "bedroom_min_m2", "Bedrooms ≥ 7 m² each", "deferred",
-        "needs salgsoppgave parsing (v1.2+)",
-    ))
-    out.append(_row(
-        "wet_rooms", "Wet rooms ≥ 3", "deferred",
-        "needs salgsoppgave parsing (v1.2+)",
-    ))
-    bod_evidence = listing.get("has_bod_evidence")
-    out.append(_row(
-        "bod", "Bod (storage room) present", "deferred",
-        "heuristic only — keyword evidence: " +
-        ("yes" if bod_evidence else "no/unclear"),
-    ))
-    wash_evidence = listing.get("has_washing_machine_evidence")
-    out.append(_row(
-        "washing", "Washing-machine connection", "deferred",
-        "heuristic only — keyword evidence: " +
-        ("yes" if wash_evidence else "no/unclear"),
-    ))
+    salgs = listing.get("salgsoppgave") or {}
+
+    # ---- Bedroom min m² ----
+    sizes = salgs.get("bedroom_sizes_m2") or []
+    smallest = salgs.get("smallest_bedroom_m2")
+    if smallest is None and sizes:
+        smallest = min(sizes)
+    if smallest is not None:
+        sizes_str = ", ".join(f"{s:.1f}" for s in sizes) if sizes else ""
+        if smallest >= 7:
+            detail = f"smallest = {smallest:.1f} m²"
+            if sizes_str:
+                detail += f" (sizes: {sizes_str})"
+            out.append(_row("bedroom_min_m2", "Bedrooms ≥ 7 m² each", "pass", detail))
+        else:
+            detail = f"smallest = {smallest:.1f} m² < 7 m²"
+            if sizes_str:
+                detail += f" (sizes: {sizes_str})"
+            detail += "  · annotation only, listing not auto-dropped"
+            out.append(_row("bedroom_min_m2", "Bedrooms ≥ 7 m² each", "fail", detail))
+    else:
+        out.append(_row(
+            "bedroom_min_m2", "Bedrooms ≥ 7 m² each", "unverified",
+            "per-room sizes not in salgsoppgave",
+        ))
+
+    # ---- Wet rooms ≥ 3 ----
+    wet = salgs.get("wet_rooms_count")
+    baths = salgs.get("bathrooms_count")
+    if wet is not None:
+        breakdown = f" ({baths} bath{'s' if (baths or 0) != 1 else ''})" if baths is not None else ""
+        if wet >= 3:
+            out.append(_row("wet_rooms", "Wet rooms ≥ 3", "pass",
+                            f"{wet} wet rooms{breakdown}"))
+        else:
+            out.append(_row("wet_rooms", "Wet rooms ≥ 3", "fail",
+                            f"only {wet} wet rooms{breakdown}  · annotation only"))
+    else:
+        out.append(_row(
+            "wet_rooms", "Wet rooms ≥ 3", "unverified",
+            "wet-room count not extracted from salgsoppgave",
+        ))
+
+    # ---- Bod ----
+    has_bod = salgs.get("has_bod")
+    bod_size = salgs.get("bod_size_m2")
+    if has_bod is True:
+        detail = "explicit yes" + (f" ({bod_size:.1f} m²)" if bod_size else "")
+        out.append(_row("bod", "Bod (storage room) present", "pass", detail))
+    elif has_bod is False:
+        out.append(_row("bod", "Bod (storage room) present", "fail",
+                        "explicit no  · annotation only"))
+    else:
+        bod_evidence = listing.get("has_bod_evidence")
+        out.append(_row(
+            "bod", "Bod (storage room) present", "unverified",
+            "salgsoppgave silent; description keyword evidence: " +
+            ("yes" if bod_evidence else "no/unclear"),
+        ))
+
+    # ---- Washing machine connection ----
+    has_wash = salgs.get("has_washing_machine_connection")
+    if has_wash is True:
+        out.append(_row("washing", "Washing-machine connection", "pass",
+                        "explicit yes"))
+    elif has_wash is False:
+        out.append(_row("washing", "Washing-machine connection", "fail",
+                        "explicit no  · annotation only"))
+    else:
+        wash_evidence = listing.get("has_washing_machine_evidence")
+        out.append(_row(
+            "washing", "Washing-machine connection", "unverified",
+            "salgsoppgave silent; description keyword evidence: " +
+            ("yes" if wash_evidence else "no/unclear"),
+        ))
+
+    # ---- North-facing — still deferred (no salgsoppgave field for it) ----
     orientations = listing.get("orientation_mentions") or []
     north_only = listing.get("primary_orientation_north_only")
     out.append(_row(
@@ -291,10 +357,13 @@ def _deferred_rows(listing: dict, config: dict) -> list[dict]:
         (", ".join(orientations) if orientations else "(none detected)") +
         ("; flagged as north-only" if north_only else ""),
     ))
+
+    # ---- Grocery — still deferred (needs OSM) ----
     out.append(_row(
         "grocery", "Grocery store ≤ 10 min walk", "deferred",
         "needs OSM lookup (v1.x)",
     ))
+
     return out
 
 
