@@ -1006,20 +1006,52 @@ body[data-voting-active=""] .note-editor { display: none !important; }
 @media (max-width: 540px) {
   /* tighten eval page paddings on small screens */
   .eval-header     { padding: 0.75rem 1rem 0.5rem; flex-direction: column; align-items: stretch; }
-  .eval-page       { padding: 0.5rem 1rem 1.5rem; gap: 1rem; }
-  .eval-section    { padding: 0.95rem 1rem; }
-  .eval-stats      { padding: 0.75rem 1rem; }
+  .eval-page       { padding: 0.5rem 0.75rem 1.5rem; gap: 0.85rem; }
+  .eval-section    { padding: 0.85rem 0.9rem; }
+  .eval-stats      { padding: 0.7rem 0.9rem; }
+  /* stats: prefer 3-up rather than the desktop fluid grid */
+  .card-stats      { gap: 0.4rem 0.5rem; }
   /* layout tweaks */
   .eval-title-block { flex-direction: column; }
-  .criteria-row     { grid-template-columns: 1.6em 1fr; }
-  .criteria-detail  { grid-column: 2 / -1; }
+  .criteria-row     { grid-template-columns: 1.6em 1fr; gap: 0.4rem; }
+  .criteria-detail  { grid-column: 2 / -1; padding-left: 0; }
   .transit-leg      { grid-template-columns: max-content max-content 1fr; }
   .leg-duration     { grid-column: 1 / -1; padding-left: 1.6em; color: var(--fg-faint); }
+  /* Stacked dl grids — keep them tabular on desktop, but on phones the
+   * 2-column layout cramps long keys against narrow values. Stack key on
+   * its own line, value indented underneath. */
+  .card-details-dl,
+  .llm-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+  .card-details-dl dt,
+  .llm-fields dt {
+    color: var(--fg-faint);
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin: 0;
+  }
+  .card-details-dl dd,
+  .llm-fields dd {
+    margin: 0.1rem 0 0 0.5rem;
+    color: var(--fg);
+  }
+  /* Section heading: slight font bump and a cleaner indent on phone */
+  .eval-section h2 {
+    font-size: 1rem;
+    margin-bottom: 0.7rem;
+  }
   /* accessible tap targets on touch devices */
   .vote-btn         { min-height: 36px; padding: 0.4rem 0.75rem; font-size: 1.05rem; }
   .note-action-btn  { min-height: 36px; padding: 0.4rem 0.95rem; }
   .photo-dot        { width: 11px; height: 11px; }
   .photo-dot::before { inset: -10px; }
+  /* Voting block — bigger labels and gap for thumb access */
+  .voting-block { gap: 0.7rem; }
+  .vote-label   { min-width: auto; font-size: 0.95rem; }
 }
 
 /* ----- footer ----- */
