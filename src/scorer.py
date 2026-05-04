@@ -46,6 +46,7 @@ import yaml
 
 # Real public-transport routing with a Haversine proxy fallback.
 from src.routing import (
+    commute_details,
     commute_minutes,
     haversine_km,
     proxy_transit_minutes,
@@ -91,9 +92,11 @@ def score_commute_celine(listing: dict, config: dict) -> SubScore | None:
         return None
     cc = config["location"]["commute_celine"]
     dest = cc["coordinates"]
-    minutes = commute_minutes(coords, dest)
-    if minutes is None:
+    info = commute_details(coords, dest)
+    if not info or info.get("minutes") is None:
         return None
+    minutes = info["minutes"]
+    summary = info.get("summary")
     km = haversine_km(coords, dest)
 
     full_max = cc["full_score_max_minutes"]
@@ -111,11 +114,14 @@ def score_commute_celine(listing: dict, config: dict) -> SubScore | None:
         value = max(0.0, 50.0 - over * (50.0 / 30.0))
 
     weight = float(config["weights"]["location_and_commute"])
+    detail = f"~{minutes:.0f} min to Helsfyr ({km:.1f} km)"
+    if summary:
+        detail += f" via {summary}"
     return SubScore(
         name="commute_celine",
         value=round(value, 1),
         weight=weight,
-        detail=f"~{minutes:.0f} min to Helsfyr ({km:.1f} km)",
+        detail=detail,
     )
 
 
@@ -515,28 +521,30 @@ def score_listing(
     schools = config.get("location", {}).get("schools", {})
     cur_school = schools.get("current") or {}
     nxt_school = schools.get("next") or {}
+    def _detail_value(target_coords) -> str | None:
+        d = commute_details(coords, target_coords)
+        if d is None or d.get("minutes") is None:
+            return None
+        km = haversine_km(coords, target_coords)
+        line = f"~{d['minutes']:.0f} min · {km:.1f} km"
+        # Real Entur runs include the leg summary; proxy fallback omits it.
+        if d.get("summary"):
+            line += f" · {d['summary']}"
+        return line
+
     if coords and cur_school.get("coordinates"):
-        km = haversine_km(coords, cur_school["coordinates"])
-        mins = commute_minutes(coords, cur_school["coordinates"])
-        if mins is not None:
-            details[f"→ Current school ({cur_school.get('address','')})"] = (
-                f"~{mins:.0f} min · {km:.1f} km"
-            )
+        v = _detail_value(cur_school["coordinates"])
+        if v:
+            details[f"→ Current school ({cur_school.get('address','')})"] = v
     if coords and nxt_school.get("coordinates"):
-        km = haversine_km(coords, nxt_school["coordinates"])
-        mins = commute_minutes(coords, nxt_school["coordinates"])
-        if mins is not None:
-            details[f"→ Future school ({nxt_school.get('address','')})"] = (
-                f"~{mins:.0f} min · {km:.1f} km"
-            )
+        v = _detail_value(nxt_school["coordinates"])
+        if v:
+            details[f"→ Future school ({nxt_school.get('address','')})"] = v
     cc = config.get("location", {}).get("commute_celine", {})
     if coords and cc.get("coordinates"):
-        km = haversine_km(coords, cc["coordinates"])
-        mins = commute_minutes(coords, cc["coordinates"])
-        if mins is not None:
-            details[f"→ Céline's commute ({cc.get('destination','')})"] = (
-                f"~{mins:.0f} min · {km:.1f} km"
-            )
+        v = _detail_value(cc["coordinates"])
+        if v:
+            details[f"→ Céline's commute ({cc.get('destination','')})"] = v
     if listing.get("area_m2") and listing.get("total_price"):
         ppm = listing["total_price"] / listing["area_m2"]
         details["Price per m²"] = f"{ppm:,.0f} NOK"

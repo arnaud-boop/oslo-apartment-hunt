@@ -169,14 +169,54 @@ query ($from: Location!, $to: Location!, $dateTime: DateTime!) {
   ) {
     tripPatterns {
       duration
+      legs {
+        mode
+        duration
+        line {
+          publicCode
+          transportMode
+        }
+        fromPlace { name }
+        toPlace { name }
+      }
     }
   }
 }
 """
 
+# Compact icons per Entur transport mode.
+_MODE_ICON = {
+    "bus": "🚌",
+    "tram": "🚊",
+    "metro": "🚇",
+    "rail": "🚆",
+    "water": "⛴️",
+    "foot": "🚶",
+    "bicycle": "🚲",
+    "car": "🚗",
+}
 
-def _query_entur(from_c: dict, to_c: dict) -> Optional[float]:
-    """Hit Entur. Returns transit minutes or None on any failure."""
+
+def _summarize_legs(legs: list) -> str:
+    """Compact one-liner like '🚌 21 + 🚇 5' from a tripPattern's legs.
+    Walking legs are omitted unless the entire trip is on foot.
+    """
+    transit = [l for l in legs if l.get("mode") != "foot"]
+    if not transit:
+        # All-foot trip.
+        total_min = sum((l.get("duration") or 0) for l in legs) / 60.0
+        return f"🚶 {total_min:.0f} min walk"
+    parts = []
+    for leg in transit:
+        icon = _MODE_ICON.get(leg.get("mode", ""), "🚉")
+        line_code = ((leg.get("line") or {}).get("publicCode") or "?")
+        parts.append(f"{icon} {line_code}")
+    return " + ".join(parts)
+
+
+def _query_entur(from_c: dict, to_c: dict) -> Optional[dict]:
+    """Hit Entur. Returns {minutes, summary, legs} for the shortest trip
+    pattern, or None on any failure."""
     global _last_fetch_t
     # Rate limit between actual fetches.
     elapsed = time.monotonic() - _last_fetch_t
@@ -220,17 +260,31 @@ def _query_entur(from_c: dict, to_c: dict) -> Optional[float]:
     patterns = (data.get("data") or {}).get("trip", {}).get("tripPatterns") or []
     if not patterns:
         return None
-    durations_s = [p["duration"] for p in patterns if isinstance(p.get("duration"), (int, float))]
-    if not durations_s:
+    valid = [
+        p for p in patterns if isinstance(p.get("duration"), (int, float))
+    ]
+    if not valid:
         return None
-    return min(durations_s) / 60.0
+    best = min(valid, key=lambda p: p["duration"])
+    legs = best.get("legs") or []
+    return {
+        "minutes": best["duration"] / 60.0,
+        "summary": _summarize_legs(legs),
+        "legs": legs,
+    }
 
 
 # ----------------------------------------------------------- public API --
 
 
-def transit_minutes(from_c: Optional[dict], to_c: Optional[dict]) -> Optional[float]:
-    """Real transit minutes via Entur. None on missing input or any error."""
+def transit_details(
+    from_c: Optional[dict], to_c: Optional[dict]
+) -> Optional[dict]:
+    """Real Entur trip data, cached. Returns {minutes, summary, legs} or None.
+
+    Cache may also hold older entries written before the legs/summary fields
+    were added — those return just {minutes} (summary will be missing).
+    """
     if not isinstance(from_c, dict) or not isinstance(to_c, dict):
         return None
     if "lat" not in from_c or "lon" not in from_c:
@@ -244,18 +298,30 @@ def transit_minutes(from_c: Optional[dict], to_c: Optional[dict]) -> Optional[fl
     key = _coord_key(from_c, to_c)
     entry = _cache.get(key)
     if entry and _fresh(entry) and entry.get("minutes") is not None:
-        return entry["minutes"]
+        # Post-v1.1.x cache entries include legs; older entries are
+        # minutes-only. For old entries we'd like to re-fetch to get the
+        # leg summary, but only if Entur is currently reachable.
+        if "legs" in entry:
+            return {
+                "minutes": entry["minutes"],
+                "summary": entry.get("summary"),
+                "legs": entry.get("legs"),
+            }
+        if _circuit_open:
+            # Entur is currently unreachable — return what we have (no summary).
+            return {"minutes": entry["minutes"], "summary": None, "legs": None}
+        # else: fall through to re-fetch and replace this entry.
 
     # Circuit breaker — once Entur has failed enough times in a row, stop
     # trying for the rest of this process. Caller falls back to proxy.
     if _circuit_open:
         return None
 
-    minutes = _query_entur(from_c, to_c)
-    if minutes is not None:
+    result = _query_entur(from_c, to_c)
+    if result is not None:
         _consecutive_failures = 0
         _cache[key] = {
-            "minutes": minutes,
+            **result,
             "fetched_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         }
         _save_cache(_cache)
@@ -268,7 +334,13 @@ def transit_minutes(from_c: Optional[dict], to_c: Optional[dict]) -> Optional[fl
                 _consecutive_failures,
             )
             _circuit_open = True
-    return minutes
+    return result
+
+
+def transit_minutes(from_c: Optional[dict], to_c: Optional[dict]) -> Optional[float]:
+    """Convenience wrapper around `transit_details` returning just minutes."""
+    d = transit_details(from_c, to_c)
+    return d["minutes"] if d else None
 
 
 def commute_minutes(from_c: Optional[dict], to_c: Optional[dict]) -> Optional[float]:
@@ -285,3 +357,21 @@ def commute_minutes(from_c: Optional[dict], to_c: Optional[dict]) -> Optional[fl
         return proxy_transit_minutes(haversine_km(from_c, to_c))
     except (KeyError, TypeError, ValueError):
         return None
+
+
+def commute_details(
+    from_c: Optional[dict], to_c: Optional[dict]
+) -> Optional[dict]:
+    """Best-effort details: Entur transit_details if reachable, Haversine
+    proxy {minutes only} otherwise.
+    """
+    if not isinstance(from_c, dict) or not isinstance(to_c, dict):
+        return None
+    real = transit_details(from_c, to_c)
+    if real is not None:
+        return real
+    try:
+        mins = proxy_transit_minutes(haversine_km(from_c, to_c))
+    except (KeyError, TypeError, ValueError):
+        return None
+    return {"minutes": mins, "summary": None, "legs": None}
