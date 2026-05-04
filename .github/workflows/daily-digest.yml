@@ -38,18 +38,20 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      # Persistent enrichment cache across runs. Each run saves under a unique
-      # key (run_id), and restores from the most recent `enrichment-` match.
-      # This means new daily runs only fetch detail pages for newly-appeared
-      # listings; existing ones are read from the restored cache.
-      - name: Restore enrichment cache
+      # Persistent cache across runs. Each run saves under a unique key
+      # (run_id), restores from the most recent matching prefix.
+      # Bump the version (v2 → v3 …) whenever the cache *shape* changes —
+      # i.e. when an enrichment / salgsoppgave / llm field is added that
+      # cached entries don't carry. This forces a full clean re-fetch on
+      # the next run instead of restoring stale data.
+      - name: Restore caches
         id: cache-restore
         uses: actions/cache/restore@v4
         with:
           path: .cache/
-          key: enrichment-${{ github.run_id }}
+          key: scrape-cache-v2-${{ github.run_id }}
           restore-keys: |
-            enrichment-
+            scrape-cache-v2-
 
       - name: Run pipeline
         run: python -m src.main
@@ -59,12 +61,12 @@ jobs:
           # logged, pipeline continues with structured-data scoring only).
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 
-      - name: Save enrichment cache
+      - name: Save caches
         if: always()
         uses: actions/cache/save@v4
         with:
           path: .cache/
-          key: enrichment-${{ github.run_id }}
+          key: scrape-cache-v2-${{ github.run_id }}
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
