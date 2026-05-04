@@ -106,15 +106,21 @@ EXTRACTION_TOOL = {
                 "type": ["string", "null"],
                 "description": (
                     "Qualitative descriptor SPECIFICALLY about the bedrooms "
-                    "(soverom) — NOT about the apartment overall. Quote the "
-                    "salgsoppgave's bedroom-specific phrasing verbatim. "
+                    "(soverom) — NOT about the apartment overall. The "
+                    "string MUST contain the word 'soverom' or a count "
+                    "(e.g. '4 gode soverom') so it's verifiably "
+                    "bedroom-specific. Quote the salgsoppgave's "
+                    "bedroom-referencing phrasing verbatim. "
                     "Good examples: 'gode soverom', 'romslige soverom', "
                     "'4 gode soverom hvorav 1 med hemsløsning'. "
-                    "BAD examples (do NOT put these here — they describe the "
-                    "apartment, not the bedrooms): 'vakker', 'klassisk', "
-                    "'påkostet', 'moderne', 'lekker', 'flott', 'pen'. "
-                    "Null when the doc describes only the apartment overall, "
-                    "not the bedrooms specifically."
+                    "BAD examples (do NOT put these here — they describe "
+                    "the apartment, not the bedrooms): 'vakker', "
+                    "'klassisk', 'påkostet', 'moderne', 'lekker', 'flott', "
+                    "'pen'. "
+                    "Null when the doc describes only the apartment "
+                    "overall, not the bedrooms specifically. A null value "
+                    "is fine — putting wrong text here is much worse than "
+                    "putting nothing."
                 ),
             },
             "wet_rooms_count": {
@@ -519,8 +525,40 @@ def extract_with_claude(
 
     for block in response.content:
         if getattr(block, "type", None) == "tool_use":
-            return dict(block.input or {})
+            data = dict(block.input or {})
+            _sanitize_extraction(data, listing_context)
+            return data
     return None
+
+
+def _sanitize_extraction(data: dict, listing_context: dict) -> None:
+    """Reject obviously-wrong extractions (in-place).
+
+    The LLM sometimes grabs apartment-level marketing copy
+    (e.g. 'Vakker, klassisk, påkostet') and puts it in
+    bedroom_quality_descriptor. We discard values that don't reference
+    bedrooms — null is much better than wrong.
+    """
+    descriptor = data.get("bedroom_quality_descriptor")
+    if isinstance(descriptor, str):
+        lower = descriptor.lower()
+        # A valid bedroom descriptor must mention bedrooms or a digit
+        # (e.g. "4 gode soverom"). If it's just apartment-level adjectives,
+        # discard it.
+        looks_bedroom_specific = (
+            "soverom" in lower
+            or "bedroom" in lower
+            or any(ch.isdigit() for ch in descriptor)
+        )
+        if not looks_bedroom_specific:
+            logger.info(
+                "Discarding bedroom_quality_descriptor for finn=%s — value "
+                "%r doesn't reference bedrooms (likely apartment-level "
+                "marketing copy)",
+                listing_context.get("finn_id"),
+                descriptor,
+            )
+            data["bedroom_quality_descriptor"] = None
 
 
 # ----------------------------------------------------- caching ------------

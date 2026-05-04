@@ -324,34 +324,46 @@ def _deferred_rows(listing: dict, config: dict) -> list[dict]:
     # ---- Bod ----
     has_bod = salgs.get("has_bod")
     bod_size = salgs.get("bod_size_m2")
+    bod_evidence = listing.get("has_bod_evidence")
     if has_bod is True:
         detail = "explicit yes" + (f" ({bod_size:.1f} m²)" if bod_size else "")
         out.append(_row("bod", "Bod (storage room) present", "pass", detail))
     elif has_bod is False:
         out.append(_row("bod", "Bod (storage room) present", "fail",
                         "explicit no  · annotation only"))
+    elif bod_evidence:
+        # LLM extraction missed it but the description regex caught the
+        # word — strong enough to call it a pass with a provenance note.
+        out.append(_row(
+            "bod", "Bod (storage room) present", "pass",
+            'description mentions "bod"/"kjellerbod"/etc. (LLM missed it; '
+            "verify on the salgsoppgave)",
+        ))
     else:
-        bod_evidence = listing.get("has_bod_evidence")
         out.append(_row(
             "bod", "Bod (storage room) present", "unverified",
-            "salgsoppgave silent; description keyword evidence: " +
-            ("yes" if bod_evidence else "no/unclear"),
+            "no mention in description or salgsoppgave",
         ))
 
     # ---- Washing machine connection ----
     has_wash = salgs.get("has_washing_machine_connection")
+    wash_evidence = listing.get("has_washing_machine_evidence")
     if has_wash is True:
         out.append(_row("washing", "Washing-machine connection", "pass",
                         "explicit yes"))
     elif has_wash is False:
         out.append(_row("washing", "Washing-machine connection", "fail",
                         "explicit no  · annotation only"))
+    elif wash_evidence:
+        out.append(_row(
+            "washing", "Washing-machine connection", "pass",
+            'description mentions "vaskemaskin"/"vaskerom" (LLM missed it; '
+            "verify on the salgsoppgave)",
+        ))
     else:
-        wash_evidence = listing.get("has_washing_machine_evidence")
         out.append(_row(
             "washing", "Washing-machine connection", "unverified",
-            "salgsoppgave silent; description keyword evidence: " +
-            ("yes" if wash_evidence else "no/unclear"),
+            "no mention in description or salgsoppgave",
         ))
 
     # ---- North-facing — still deferred (no salgsoppgave field for it) ----
