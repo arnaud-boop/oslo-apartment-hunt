@@ -113,12 +113,16 @@ def render(
 
     new_in_batch_set = set(str(x) for x in (new_in_batch or set()))
 
-    # Split scored listings: anything where BOTH partners voted 👎 is moved
-    # out of the main digest and into a collapsed footer. Eval pages still
-    # generate (so direct links keep working — votes can change).
+    # Split scored listings into three lanes based on voting state:
+    #   - hidden    : both partners voted 👎  → collapsed footer
+    #   - favorites : both partners voted 👍  → promoted "⭐ Favorites" section above main
+    #   - visible   : everything else         → main score-sorted list
+    # Eval pages still generate for all three lanes (direct links work,
+    # votes can change).
     votes_dict = votes or {}
     visible: list[dict] = []
     hidden: list[dict] = []
+    favorites: list[dict] = []
     for s in scored:
         fid = str((s.get("listing") or {}).get("finn_id") or "")
         vstate = votes_dict.get(fid) or {}
@@ -126,6 +130,8 @@ def render(
         c_vote = ((vstate.get("celine") or {}).get("vote") or "").lower()
         if a_vote == "down" and c_vote == "down":
             hidden.append(s)
+        elif a_vote == "up" and c_vote == "up":
+            favorites.append(s)
         else:
             visible.append(s)
 
@@ -137,6 +143,7 @@ def render(
 
     html = template.render(
         scored=visible,
+        scored_favorites=favorites,
         scored_hidden=hidden,
         scraped_count=scraped_count,
         dropped_count=dropped_count,

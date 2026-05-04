@@ -39,8 +39,8 @@
 </div>
 {% endif %}
 
-<main class="listings">
-  {% for s in scored %}
+{# ---------- card macro (rendered identically in favorites + main) ---------- #}
+{%- macro render_card(s, votes, new_in_batch) -%}
   {% set l = s.listing %}
   {% set vote_state = votes.get(l.finn_id) if votes else None %}
   {% set arnaud_acked = vote_state and ((vote_state.get('arnaud') or {}).get('vote') or (vote_state.get('arnaud') or {}).get('note')) %}
@@ -213,6 +213,26 @@
       </p>
     </div>
   </article>
+{%- endmacro -%}
+
+{# ---------- ⭐ favorites (both partners voted up) — promoted above main ---------- #}
+{% if scored_favorites %}
+<section class="favorites-section" aria-labelledby="favorites-heading">
+  <h2 id="favorites-heading" class="favorites-heading">
+    ⭐ Favorites — both you and Céline liked
+    <span class="favorites-count">({{ scored_favorites|length }})</span>
+  </h2>
+  <div class="favorites-list">
+    {% for s in scored_favorites %}
+      {{ render_card(s, votes, new_in_batch) }}
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+<main class="listings">
+  {% for s in scored %}
+    {{ render_card(s, votes, new_in_batch) }}
   {% endfor %}
 </main>
 
