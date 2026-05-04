@@ -29,6 +29,7 @@ from src.email_digest import send_digest_email
 from src.enricher import enrich_listings
 from src.filters import apply_hard_filters, load_config
 from src.generator import render
+from src.grocery import enrich_with_grocery
 from src.history import update_history
 from src.llm import analyze_listings
 from src.salgsoppgave import enrich_with_salgsoppgave
@@ -126,6 +127,18 @@ def main() -> int:
         )
         enriched = enrich_listings(pass1_kept)
         _save_json(enriched_path, enriched)
+
+    # ------------------------------------------- 3.3 GROCERY (Overpass) ----
+    # Query OpenStreetMap for nearby supermarkets, classify by chain.
+    # Annotation-only (doesn't drop listings); score contribution via
+    # `weights.grocery`.
+    gro_cfg = config.get("grocery", {}) or {}
+    if gro_cfg.get("active", True):
+        logger.info("=== 3.3/6 Grocery proximity (Overpass / OSM) ===")
+        enriched = enrich_with_grocery(enriched, config=config)
+        _save_json(enriched_path, enriched)
+    else:
+        logger.info("Grocery filter disabled in config — skipping")
 
     # -------------------------------------- 3.4 SALGSOPPGAVE EXTRACTION ----
     # Fetch + LLM-extract structured facts from each listing's broker

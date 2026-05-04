@@ -125,6 +125,63 @@ def score_commute_celine(listing: dict, config: dict) -> SubScore | None:
     )
 
 
+def score_grocery(listing: dict, config: dict) -> SubScore | None:
+    """Distance-based grocery score, fed by Overpass (src/grocery.py).
+
+    Curve:
+      ≤ 400 m → 100
+      400–800 m → linear 100 → 50  (the 10-min walk boundary)
+      800–1500 m → linear 50 → 0
+      > 1500 m → 0
+      Excluded-only nearby (Bunnpris/Joker/etc.) → 25
+      No supermarket at all → 0
+
+    Returns None if grocery_check data is missing — bucket is then
+    excluded from the weighted average rather than penalising the listing.
+    """
+    grocery = listing.get("grocery_check")
+    if not grocery:
+        return None
+
+    weight = float(config.get("weights", {}).get("grocery", 8))
+    approved = grocery.get("approved_list") or []
+    excluded = grocery.get("excluded_list") or []
+
+    if approved:
+        d = approved[0]["distance_m"]
+        if d <= 400:
+            value = 100.0
+        elif d <= 800:
+            value = 100.0 - (d - 400) / 400.0 * 50.0
+        elif d <= 1500:
+            value = 50.0 - (d - 800) / 700.0 * 50.0
+        else:
+            value = 0.0
+        more = grocery.get("approved_count", 1) - 1
+        more_suffix = f" (+{more} more)" if more > 0 else ""
+        detail = (
+            f"{approved[0]['name']} ({approved[0]['chain']}) "
+            f"{d} m{more_suffix}"
+        )
+    elif excluded:
+        nearest = excluded[0]
+        value = 25.0
+        detail = (
+            f"only {nearest['name']} ({nearest['chain']}) "
+            f"{nearest['distance_m']} m — no real supermarket nearby"
+        )
+    else:
+        value = 0.0
+        detail = "no supermarket within 1 km"
+
+    return SubScore(
+        name="grocery",
+        value=round(value, 1),
+        weight=weight,
+        detail=detail,
+    )
+
+
 def score_apartment(listing: dict, config: dict) -> SubScore | None:
     """Apartment-quality subscore. Sum of binary signals (each weighted by
     config), normalised to 0-100. Skips entirely if `apartment.active_in_v1`
@@ -487,6 +544,7 @@ def score_listing(
         lambda: score_price_per_m2(listing, config, dataset_stats),
         lambda: score_apartment(listing, config),
         lambda: score_building(listing, config),
+        lambda: score_grocery(listing, config),
     ):
         s = fn()
         if s is not None:
@@ -550,6 +608,27 @@ def score_listing(
         details["Price per m²"] = f"{ppm:,.0f} NOK"
     if listing.get("plot_m2"):
         details["Plot size"] = f"{listing['plot_m2']:.0f} m²"
+    grocery = listing.get("grocery_check")
+    if grocery:
+        approved = grocery.get("approved_list") or []
+        if approved:
+            n = approved[0]
+            more = grocery.get("approved_count", 1) - 1
+            details["🛒 Nearest supermarket"] = (
+                f"{n['name']} ({n['chain']}) {n['distance_m']} m"
+                + (f" · +{more} more approved within "
+                   f"{grocery.get('radius_m', 1000)} m" if more > 0 else "")
+            )
+        else:
+            excl = (grocery.get("excluded_list") or [{}])[0]
+            if excl:
+                details["🛒 Nearest supermarket"] = (
+                    f"⚠️ only {excl.get('name', '?')} "
+                    f"({excl.get('chain', '?')}) "
+                    f"{excl.get('distance_m', '?')} m — not a real supermarket"
+                )
+            else:
+                details["🛒 Nearest supermarket"] = "none within 1 km"
     if listing.get("construction_year"):
         details["Built"] = str(listing["construction_year"])
     if listing.get("energy_class"):

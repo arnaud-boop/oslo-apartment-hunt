@@ -81,13 +81,16 @@ hard_filters:
 
 
 # ============================================================================
-# Bucket weights (must sum to 100)
+# Bucket weights — used as the per-subscore weight in the weighted average.
+# Total no longer sums to 100 since we added an extra grocery bucket; the
+# scorer normalizes over whatever subscores actually returned a value.
 # ============================================================================
 weights:
   location_and_commute: 30
   apartment: 35
   financials: 20
   building: 15
+  grocery: 8     # ≈7% of final score — meaningful but not dominant
 
 
 # ============================================================================
@@ -185,6 +188,32 @@ building:
   active_in_v1: true
   family_friendly_bonus: 8
   # Inline weights for the busy/quiet street signal — see scorer.py
+
+
+# ============================================================================
+# Grocery proximity (v1.3) — Overpass API for nearby supermarkets.
+# Annotation-only by design (doesn't drop listings); contributes to scoring
+# via `weights.grocery`. Edit the chain lists to change what counts as a
+# "real supermarket" vs a convenience store.
+# ============================================================================
+grocery:
+  active: true
+  query_radius_m: 1000          # how wide we search OSM
+  walking_threshold_m: 800      # ≈10 min at ~4.8 km/h — pass/fail boundary
+  approved_chains:
+    - kiwi
+    - meny
+    - coop mega
+    - rema 1000
+    - coop extra
+    - spar
+  excluded_chains:
+    - joker
+    - bunnpris
+    - coop prix
+    - narvesen
+    - 7-eleven
+    - deli de luca
 
 
 # ============================================================================

@@ -233,6 +233,51 @@ def _check_celine_commute(listing, config):
 # ---- LLM-based filter --------------------------------------------------
 
 
+def _check_grocery(listing: dict, config: dict) -> dict:
+    """Annotation-only check fed by Overpass (src/grocery.py).
+    Returns pass/fail/unverified with concrete chain + distance details.
+    """
+    cfg = (config.get("grocery") or {})
+    if not cfg.get("active", True):
+        return _row("grocery", "Grocery within 10 min walk", "deferred",
+                    "rule disabled in config")
+    threshold = int(cfg.get("walking_threshold_m", 800))
+    grocery = listing.get("grocery_check")
+    if not grocery:
+        return _row("grocery", "Grocery within 10 min walk", "unverified",
+                    "Overpass query failed or no coordinates")
+    approved = grocery.get("approved_list") or []
+    excluded = grocery.get("excluded_list") or []
+    if approved and approved[0]["distance_m"] <= threshold:
+        nearest = approved[0]
+        more = grocery.get("approved_count", 1) - 1
+        suffix = f" (+{more} more approved nearby)" if more > 0 else ""
+        return _row(
+            "grocery", "Grocery within 10 min walk", "pass",
+            f"{nearest['name']} ({nearest['chain']}) "
+            f"{nearest['distance_m']} m{suffix}",
+        )
+    if approved:
+        nearest = approved[0]
+        return _row(
+            "grocery", "Grocery within 10 min walk", "fail",
+            f"nearest approved is {nearest['name']} ({nearest['chain']}) "
+            f"at {nearest['distance_m']} m  · annotation only",
+        )
+    if excluded:
+        nearest = excluded[0]
+        return _row(
+            "grocery", "Grocery within 10 min walk", "fail",
+            f"only {nearest['name']} ({nearest['chain']}) "
+            f"{nearest['distance_m']} m — not on approved chain list  "
+            "· annotation only",
+        )
+    return _row(
+        "grocery", "Grocery within 10 min walk", "fail",
+        "no supermarket within 1 km radius  · annotation only",
+    )
+
+
 def _check_layout_dealbreaker(listing: dict, config: dict) -> dict:
     cfg = (config.get("hard_filters") or {}).get("exclude_layout_dealbreakers") or {}
     active = bool(cfg.get("active"))
@@ -376,11 +421,7 @@ def _deferred_rows(listing: dict, config: dict) -> list[dict]:
         ("; flagged as north-only" if north_only else ""),
     ))
 
-    # ---- Grocery — still deferred (needs OSM) ----
-    out.append(_row(
-        "grocery", "Grocery store ≤ 10 min walk", "deferred",
-        "needs OSM lookup (v1.x)",
-    ))
+    # Grocery is now an active check (see _check_grocery), not deferred.
 
     return out
 
@@ -402,6 +443,7 @@ _ACTIVE_CHECKS = [
     _check_current_school,
     _check_future_school,
     _check_celine_commute,
+    _check_grocery,
 ]
 
 
