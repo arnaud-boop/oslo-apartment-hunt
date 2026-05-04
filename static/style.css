@@ -368,6 +368,47 @@ a:hover { color: var(--accent-hover); }
   font-size: 0.88rem;
 }
 
+/* ----- new arrivals banner ----- */
+
+.new-arrivals-banner {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 0.75rem 1rem;
+  background: var(--tag-bg);
+  border-left: 4px solid var(--accent);
+  border-radius: 6px;
+  font-size: 0.95rem;
+  color: var(--fg);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: -0.25rem;
+  margin-bottom: 0.5rem;
+}
+.new-arrivals-icon { font-size: 1.1rem; }
+.new-arrivals-suffix { color: var(--fg-faint); font-size: 0.85rem; }
+
+/* ----- 🆕 NEW per-listing tag ----- */
+/* Always rendered on cards with data-new-in-batch="1"; CSS hides it for any
+ * voter who has already acknowledged (voted/noted). Read-only viewers
+ * (no ?v= URL param) see no NEW tags. */
+
+.new-tag {
+  background: var(--score-high);
+  color: white;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+/* Hide NEW tag by default; voter-specific rules below opt back in. */
+.new-tag { display: none; }
+body[data-voter="arnaud"] [data-finn-id]:not([data-arnaud-acked="1"]) .new-tag {
+  display: inline-block;
+}
+body[data-voter="celine"] [data-finn-id]:not([data-celine-acked="1"]) .new-tag {
+  display: inline-block;
+}
+
 /* ----- voting block ----- */
 
 .voting-block {

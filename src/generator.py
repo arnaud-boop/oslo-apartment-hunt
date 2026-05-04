@@ -78,6 +78,7 @@ def render(
     out_dir: Path,
     votes: dict | None = None,
     voting_endpoint: str = "",
+    new_in_batch: set | None = None,
 ) -> Path:
     template_dir = repo_root / "templates"
     static_dir = repo_root / "static"
@@ -95,6 +96,12 @@ def render(
     )
     template = env.get_template("index.html.j2")
 
+    new_in_batch_set = set(str(x) for x in (new_in_batch or set()))
+    # Count how many of the rendered listings are new arrivals.
+    new_in_batch_visible = sum(
+        1 for s in scored if str((s.get("listing") or {}).get("finn_id") or "") in new_in_batch_set
+    )
+
     html = template.render(
         scored=scored,
         scraped_count=scraped_count,
@@ -105,6 +112,8 @@ def render(
         run_date=run_dt.strftime("%Y-%m-%d"),
         votes=votes or {},
         voting_endpoint=voting_endpoint or "",
+        new_in_batch=new_in_batch_set,
+        new_in_batch_count=new_in_batch_visible,
     )
 
     out_dir.mkdir(parents=True, exist_ok=True)

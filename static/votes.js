@@ -39,6 +39,11 @@
     });
   }
 
+  // Banner count is server-rendered as the collective "new in batch"
+  // figure. Recompute it once now to reflect the current voter's
+  // acknowledged state (e.g. 5 new total but you've already acked 2 → 3).
+  refreshBannerCount();
+
   function fetchAllVotes() {
     fetch(ENDPOINT, { method: "GET", cache: "no-cache" })
       .then(function (r) {
@@ -58,12 +63,38 @@
       const finn = String(row.finn_id || "");
       const voter = String(row.voter || "").toLowerCase();
       if (!finn || !voter) return;
-      const card = document.querySelector('[data-finn-id="' + cssEscape(finn) + '"]');
+      const card = document.querySelector(
+        'article[data-finn-id="' + cssEscape(finn) + '"]'
+      );
       if (!card) return;
       const column = card.querySelector('.vote-column[data-voter="' + voter + '"]');
-      if (!column) return;
-      setColumnState(column, row.vote || "", row.note || "");
+      if (column) setColumnState(column, row.vote || "", row.note || "");
+      setAckedAttr(card, voter, row.vote, row.note);
     });
+    refreshBannerCount();
+  }
+
+  function setAckedAttr(card, voter, vote, note) {
+    const acked = (vote && vote !== "") || (note && note !== "");
+    const attr = "data-" + voter + "-acked";
+    if (acked) card.setAttribute(attr, "1");
+    else card.removeAttribute(attr);
+  }
+
+  function refreshBannerCount() {
+    if (!VOTER) return;
+    const banner = document.querySelector(".new-arrivals-banner");
+    if (!banner) return;
+    const counter = banner.querySelector("[data-new-banner-count]");
+    const suffix = banner.querySelector("[data-new-banner-suffix]");
+    // Count cards that are new-in-batch AND not acked by current voter.
+    const cards = document.querySelectorAll(
+      'article[data-new-in-batch="1"]:not([data-' + VOTER + '-acked="1"])'
+    );
+    if (counter) counter.textContent = String(cards.length);
+    if (suffix) suffix.textContent = " (for you)";
+    if (cards.length === 0) banner.style.display = "none";
+    else banner.style.display = "";
   }
 
   function setColumnState(column, vote, note) {
@@ -96,7 +127,18 @@
     });
     setStatus(card, "pending");
     postVote({ finn_id: finnId, voter: VOTER, vote: newVote })
-      .then(function () { setStatus(card, "ok"); })
+      .then(function (data) {
+        setStatus(card, "ok");
+        // Server response carries the resulting (vote, note) — use it to
+        // sync the acked attribute (which controls the 🆕 NEW tag visibility).
+        setAckedAttr(
+          card,
+          VOTER,
+          (data && data.vote) || newVote,
+          (data && data.note) || ""
+        );
+        refreshBannerCount();
+      })
       .catch(function (err) {
         console.warn("[votes] vote POST failed:", err);
         setStatus(card, "err");
@@ -129,7 +171,7 @@
 
     setStatus(card, "pending");
     postVote({ finn_id: finnId, voter: VOTER, note: note })
-      .then(function () {
+      .then(function (data) {
         if (column) {
           const display = column.querySelector(".note-display");
           if (display) {
@@ -139,6 +181,13 @@
         }
         editor.classList.remove("expanded");
         setStatus(card, "ok");
+        setAckedAttr(
+          card,
+          VOTER,
+          (data && data.vote) || "",
+          (data && data.note) || note || ""
+        );
+        refreshBannerCount();
       })
       .catch(function (err) {
         console.warn("[votes] note POST failed:", err);

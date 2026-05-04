@@ -28,6 +28,7 @@ from pathlib import Path
 from src.enricher import enrich_listings
 from src.filters import apply_hard_filters, load_config
 from src.generator import render
+from src.history import update_history
 from src.llm import analyze_listings
 from src.scorer import score_listings
 from src.votes import fetch_votes
@@ -83,6 +84,17 @@ def main() -> int:
         _save_json(listings_path, listings_dicts)
         logger.info("Scraped %d listings", len(listings_dicts))
     scraped_count = len(listings_dicts)
+
+    # ----------------------------------------------- 1.5 HISTORY UPDATE ----
+    # Track first/last-seen per finn_id; identify the new arrivals in this
+    # batch. This runs against the raw scrape (pre-filter) so we don't lose
+    # newness signal for listings dropped by hard filters.
+    _history, new_in_batch = update_history(listings_dicts)
+    logger.info(
+        "History: %d new arrivals in today's batch (of %d scraped)",
+        len(new_in_batch),
+        scraped_count,
+    )
 
     # --------------------------------------- 2. FILTER PASS 1 (cheap) ----
     logger.info("=== 2/6 Filter pass 1 (search-result fields) ===")
@@ -186,6 +198,7 @@ def main() -> int:
         out_dir=out_dir,
         votes=votes,
         voting_endpoint=voting_endpoint,
+        new_in_batch=new_in_batch,
     )
 
     logger.info(

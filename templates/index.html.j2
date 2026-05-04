@@ -29,10 +29,28 @@
   </details>
 </header>
 
+{% if new_in_batch_count and new_in_batch_count > 0 %}
+<div class="new-arrivals-banner" role="status" aria-live="polite">
+  <span class="new-arrivals-icon">🆕</span>
+  <span class="new-arrivals-text">
+    <span data-new-banner-count>{{ new_in_batch_count }}</span> new in today's batch
+    <span class="new-arrivals-suffix" data-new-banner-suffix></span>
+  </span>
+</div>
+{% endif %}
+
 <main class="listings">
   {% for s in scored %}
   {% set l = s.listing %}
-  <article class="listing-card" id="finn-{{ l.finn_id }}" data-finn-id="{{ l.finn_id }}">
+  {% set vote_state = votes.get(l.finn_id) if votes else None %}
+  {% set arnaud_acked = vote_state and ((vote_state.get('arnaud') or {}).get('vote') or (vote_state.get('arnaud') or {}).get('note')) %}
+  {% set celine_acked = vote_state and ((vote_state.get('celine') or {}).get('vote') or (vote_state.get('celine') or {}).get('note')) %}
+  {% set is_new_in_batch = l.finn_id in new_in_batch %}
+  <article class="listing-card" id="finn-{{ l.finn_id }}"
+           data-finn-id="{{ l.finn_id }}"
+           {% if is_new_in_batch %}data-new-in-batch="1"{% endif %}
+           {% if arnaud_acked %}data-arnaud-acked="1"{% endif %}
+           {% if celine_acked %}data-celine-acked="1"{% endif %}>
     <div class="card-photo">
       {% if l.image_url %}
         <img src="{{ l.image_url }}" alt="" loading="lazy">
@@ -92,8 +110,9 @@
         {% endif %}
       </div>
 
-      {% if s.tags %}
+      {% if s.tags or is_new_in_batch %}
       <div class="card-tags">
+        {% if is_new_in_batch %}<span class="tag new-tag">🆕 NEW</span>{% endif %}
         {% for t in s.tags %}<span class="tag">{{ t }}</span>{% endfor %}
       </div>
       {% endif %}
@@ -170,7 +189,6 @@
       </details>
       {% endif %}
 
-      {% set vote_state = votes.get(l.finn_id) if votes else None %}
       <div class="voting-block" data-finn-id="{{ l.finn_id }}">
         {% for v in ('arnaud', 'celine') %}
           {% set vstate = (vote_state.get(v) if vote_state else {}) or {} %}
