@@ -25,6 +25,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+from src.email_digest import send_digest_email
 from src.enricher import enrich_listings
 from src.filters import apply_hard_filters, load_config
 from src.generator import render
@@ -202,18 +203,47 @@ def main() -> int:
     voting_cfg = config.get("voting", {}) or {}
     voting_endpoint = voting_cfg.get("web_app_url", "") or ""
     votes = fetch_votes(voting_endpoint) if voting_endpoint else {}
+    run_dt = datetime.now(timezone.utc)
     render(
         [s.to_dict() for s in scored],
         repo_root,
         scraped_count=scraped_count,
         dropped_count=final_dropped,
-        run_dt=datetime.now(timezone.utc),
+        run_dt=run_dt,
         out_dir=out_dir,
         votes=votes,
         voting_endpoint=voting_endpoint,
         new_in_batch=new_in_batch,
         config=config,
     )
+
+    # ---------------------------------------------- 7. EMAIL DIGEST ----
+    # Send a mini-digest email with NEW arrivals (heartbeat email if zero
+    # new). Per-recipient ?v= URL personalization. Skips silently if env
+    # vars are missing. Same scored list as the renderer; we recompute the
+    # visible/hidden split inside email_digest.py to keep email and web
+    # in sync.
+    scored_dicts = [s.to_dict() for s in scored]
+    visible_for_email = []
+    for s in scored_dicts:
+        fid = str((s.get("listing") or {}).get("finn_id") or "")
+        v = (votes or {}).get(fid) or {}
+        a = ((v.get("arnaud") or {}).get("vote") or "").lower()
+        c = ((v.get("celine") or {}).get("vote") or "").lower()
+        if not (a == "down" and c == "down"):
+            visible_for_email.append(s)
+    try:
+        send_digest_email(
+            scored_visible=visible_for_email,
+            new_in_batch=new_in_batch,
+            run_dt=run_dt,
+            config=config,
+            repo_root=repo_root,
+        )
+    except Exception as e:
+        # Email failure must not fail the workflow — the web digest is the
+        # primary deliverable.
+        logger.warning("Email digest step failed (continuing): %s", e)
 
     logger.info(
         "DONE. Pipeline: %d scraped → %d after pass 1 → %d enriched → %d final.",

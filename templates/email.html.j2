@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Oslo digest</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #fafafa; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; color: #1a1a1a; line-height: 1.5;">
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #fafafa;">
+  <tr>
+    <td align="center" style="padding: 1.5rem 0.5rem;">
+
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width: 640px;">
+
+        {# ---------- header ---------- #}
+        <tr><td style="padding: 0 1rem;">
+          <h1 style="margin: 0; font-size: 1.4rem; line-height: 1.25; color: #1a1a1a;">
+            {% if new_count > 0 %}
+              🆕 {{ new_count }} new in today's Oslo batch
+            {% else %}
+              Oslo digest — nothing new today
+            {% endif %}
+          </h1>
+          <p style="margin: 0.4rem 0 1.2rem; color: #555; font-size: 0.92rem;">
+            {{ run_human }} · {{ visible_count }} visible listing{% if visible_count != 1 %}s{% endif %} in your digest
+          </p>
+        </td></tr>
+
+        {% if new_listings %}
+
+        {# ---------- one card per new listing ---------- #}
+        {% for s in new_listings %}
+        {% set l = s.listing %}
+        <tr><td style="padding: 0 1rem 0.85rem;">
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #ffffff; border: 1px solid #e3e3e3; border-radius: 8px; border-collapse: separate; overflow: hidden;">
+            <tr>
+              {# left: photo #}
+              <td valign="top" width="160" style="width: 160px; vertical-align: top; padding: 0;">
+                {% if l.image_url %}
+                <a href="{{ listing_eval_url_template.format(finn_id=l.finn_id) }}" style="display: block;">
+                  <img src="{{ l.image_url }}" alt="" width="160" height="120" style="display: block; width: 160px; height: 120px; object-fit: cover; border: 0;">
+                </a>
+                {% else %}
+                <div style="width: 160px; height: 120px; background-color: #e3e3e3;"></div>
+                {% endif %}
+              </td>
+              {# right: content #}
+              <td valign="top" style="padding: 0.7rem 0.95rem; vertical-align: top;">
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                  <tr>
+                    <td valign="top" style="padding: 0;">
+                      <span style="display: inline-block; padding: 0.1rem 0.55rem; background-color: {% if s.score >= 70 %}#2e7d32{% elif s.score >= 50 %}#c98800{% else %}#b03030{% endif %}; color: #ffffff; border-radius: 4px; font-weight: 700; font-size: 0.85rem; vertical-align: middle;">
+                        {{ '%.0f' % s.score }}/100
+                      </span>
+                      &nbsp;
+                      <a href="{{ listing_eval_url_template.format(finn_id=l.finn_id) }}" style="color: #1a1a1a; text-decoration: none; font-weight: 600; font-size: 1rem;">
+                        {{ l.title or '(no title)' }}
+                      </a>
+                    </td>
+                  </tr>
+                  <tr><td style="padding: 0.3rem 0 0;">
+                    <span style="color: #555; font-size: 0.88rem;">
+                      {{ l.address or '' }}{% if l.local_area %} · {{ l.local_area }}{% endif %}
+                    </span>
+                  </td></tr>
+                  <tr><td style="padding: 0.3rem 0 0;">
+                    <span style="color: #1a1a1a; font-size: 0.92rem; font-weight: 600;">
+                      {{ fmt_nok(l.total_price) }} NOK
+                    </span>
+                    <span style="color: #555; font-size: 0.88rem;">
+                      · {{ l.area_m2 }} m² · {{ l.bedrooms }} BR{% if l.property_type %} · {{ l.property_type }}{% endif %}
+                    </span>
+                  </td></tr>
+                  {% if s.headline %}
+                  <tr><td style="padding: 0.4rem 0 0;">
+                    <em style="color: #555; font-size: 0.85rem;">{{ s.headline }}</em>
+                  </td></tr>
+                  {% endif %}
+                  <tr><td style="padding: 0.5rem 0 0;">
+                    <a href="{{ listing_eval_url_template.format(finn_id=l.finn_id) }}" style="color: #0064cc; text-decoration: none; font-size: 0.88rem; font-weight: 600;">
+                      → Full evaluation
+                    </a>
+                  </td></tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </td></tr>
+        {% endfor %}
+
+        {# ---------- digest CTA ---------- #}
+        <tr><td style="padding: 0.5rem 1rem 1.2rem;">
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #eef2f7; border-radius: 8px;">
+            <tr>
+              <td align="center" style="padding: 0.85rem 1rem;">
+                <a href="{{ digest_url }}" style="color: #0064cc; text-decoration: none; font-weight: 600; font-size: 0.95rem;">
+                  → Full digest with all {{ visible_count }} listings
+                </a>
+              </td>
+            </tr>
+          </table>
+        </td></tr>
+
+        {% else %}
+
+        {# ---------- zero-new heartbeat ---------- #}
+        <tr><td style="padding: 0 1rem 1.2rem;">
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #ffffff; border: 1px solid #e3e3e3; border-radius: 8px;">
+            <tr>
+              <td style="padding: 1.1rem 1.2rem; color: #555; font-size: 0.95rem; line-height: 1.55;">
+                No new listings appeared on Finn since the last run. The workflow ran fine — see you tomorrow.
+              </td>
+            </tr>
+          </table>
+        </td></tr>
+        <tr><td style="padding: 0 1rem 1.2rem;" align="center">
+          <a href="{{ digest_url }}" style="color: #0064cc; text-decoration: none; font-size: 0.92rem;">
+            → Open the digest anyway
+          </a>
+        </td></tr>
+
+        {% endif %}
+
+        {# ---------- footer ---------- #}
+        <tr><td style="padding: 1rem; border-top: 1px solid #e3e3e3;">
+          <p style="margin: 0; font-size: 0.78rem; color: #888; text-align: center;">
+            Personal use only · Generated <span title="{{ run_iso }}">{{ run_iso[:10] }}</span> ·
+            <a href="https://github.com/arnaud-boop/oslo-apartment-hunt" style="color: #888;">repo</a>
+          </p>
+        </td></tr>
+
+      </table>
+
+    </td>
+  </tr>
+</table>
+
+</body>
+</html>

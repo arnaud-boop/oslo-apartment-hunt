@@ -60,6 +60,11 @@ jobs:
           # Optional. If unset, the LLM analysis pass is skipped (warning
           # logged, pipeline continues with structured-data scoring only).
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Optional. If RESEND_API_KEY or both EMAIL_TO_* are unset, the
+          # email digest step skips silently. The web digest is primary.
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          EMAIL_TO_ARNAUD: ${{ secrets.EMAIL_TO_ARNAUD }}
+          EMAIL_TO_CELINE: ${{ secrets.EMAIL_TO_CELINE }}
 
       - name: Save caches
         if: always()

@@ -196,6 +196,19 @@ tags:
 
 
 # ============================================================================
+# Email digest (v1.3) — daily Resend email of NEW listings, heartbeat
+# email on zero-new days. Recipient addresses are read from environment
+# (EMAIL_TO_ARNAUD, EMAIL_TO_CELINE) — they're PII, kept out of the repo.
+# API key from RESEND_API_KEY (GitHub Secret in CI).
+# ============================================================================
+email:
+  active: true
+  sender: "Oslo digest <onboarding@resend.dev>"   # Resend sandbox sender — works without domain verification
+  base_url: "https://arnaud-boop.github.io/oslo-apartment-hunt"
+  send_on_zero_new: true   # heartbeat email when nothing new today
+
+
+# ============================================================================
 # Voting backend (v1.1) — Google Sheets via Apps Script Web App.
 # Set web_app_url after deploying apps_script/Code.gs as a Web app.
 # Both partners load the digest at the same URL but with ?v=arnaud or
