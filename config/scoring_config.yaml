@@ -81,6 +81,59 @@ hard_filters:
 
 
 # ============================================================================
+# Alternate scenarios (v1.4) — listings that don't qualify for the main
+# scenario (defined by `hard_filters.location_caps` above) get classified
+# here. UI shows them in collapsed sections below the main digest. A listing
+# appears in the highest scenario it qualifies for; no double-listing.
+#
+# Non-location hard filters (price, area, sold, dealbreaker, …) apply in
+# every scenario — only the location caps relax. Céline's commute cap
+# (45 min) also stays unchanged across all scenarios.
+# ============================================================================
+scenarios:
+
+  # Scenario 1: current school is short-term (only matters until Sept 2028).
+  # Skovveien is only ~2 more years; we accept up to 35 min there. Future
+  # school cap unchanged.
+  scenario_1:
+    active: true
+    label: "Scenario 1: relaxed current-school commute"
+    description: >
+      Skovveien is only relevant for ~2 more years. We accept up to 35 min
+      to current school; future school cap unchanged at 33 min.
+    current_school_max_minutes: 35
+    future_school_max_minutes: 33
+
+  # Scenario 2: Fornebubanen metro line opens late 2029.
+  # Listings here have a high commute today but get a strong drop once the
+  # new line opens (Majorstua/Skøyen ↔ Fornebu in ~12 min). Modeling the
+  # post-2029 commute uses today's full transit (subway, bus, tram, walk)
+  # to the interchange station, then the metro leg, then a final walk.
+  scenario_2:
+    active: true
+    label: "Scenario 2: future-proofed via Fornebubanen 2029"
+    description: >
+      Once the Fornebubanen metro line opens (target late 2029), commute
+      to the future school drops sharply. Until then, today's commute can
+      be up to 40 min.
+    warning: "⚠️ assumes Fornebubanen opens on schedule"
+    current_school_max_minutes: 25            # unchanged from main
+    future_school_max_minutes_today: 40       # relaxed from main's 33
+    future_school_max_minutes_post_2029: 25   # projected, after line opens
+    fornebubanen:
+      # Interchange stations on the new line that have rich existing
+      # transit into them. Lysaker and the Fornebu terminus itself aren't
+      # useful as interchange candidates (they're effectively at the
+      # destination), so we ignore them.
+      # Projected commute = min(transit→station) + metro_minutes + final_walk_minutes.
+      interchanges:
+        majorstua: { lat: 59.929859, lon: 10.715379 }
+        skoyen:    { lat: 59.921972, lon: 10.679456 }
+      metro_minutes: 12             # Majorstua/Skøyen ↔ Fornebu via new line
+      final_walk_minutes: 5         # Fornebu T-bane ↔ Snarøyveien 30
+
+
+# ============================================================================
 # Bucket weights — used as the per-subscore weight in the weighted average.
 # Total no longer sums to 100 since we added an extra grocery bucket; the
 # scorer normalizes over whatever subscores actually returned a value.

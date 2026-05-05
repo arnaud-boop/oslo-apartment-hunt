@@ -76,6 +76,13 @@ class ScoredListing:
     unverified: list[str] = field(default_factory=list)  # passed through from filter
     distance_to_current_home_km: float | None = None  # for centrality tiebreaker
     details: dict = field(default_factory=dict)        # ordered dict of computed metrics shown on card
+    # v1.4: which lane this listing belongs in. "main" / "scenario_1" /
+    # "scenario_2". Defaults to "main" so older callers don't need to pass it.
+    scenario: str = "main"
+    # v1.4: only populated when scenario != "main" — the reasons the listing
+    # didn't qualify for main, shown on the eval page so we know why it's
+    # in an alt section.
+    main_scenario_fails: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -656,6 +663,8 @@ def score_listing(
         unverified=list(filter_result.get("unverified", [])),
         distance_to_current_home_km=dist_home,
         details=details,
+        scenario=filter_result.get("scenario") or "main",
+        main_scenario_fails=list(filter_result.get("main_scenario_fails") or []),
     )
 
 
@@ -738,7 +747,9 @@ def main() -> int:
 
     kept_dicts = [
         {"listing": k.listing, "passed": True, "failed": k.failed,
-         "unverified": k.unverified}
+         "unverified": k.unverified,
+         "scenario": k.scenario,
+         "main_scenario_fails": k.main_scenario_fails}
         for k in kept
     ]
 

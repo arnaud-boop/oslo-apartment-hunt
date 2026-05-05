@@ -18,7 +18,7 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from src.criteria import compute_checklist
-from src.routing import commute_details
+from src.routing import commute_details, projected_post2029_to_fornebu
 
 logger = logging.getLogger(__name__)
 
@@ -113,14 +113,19 @@ def render(
 
     new_in_batch_set = set(str(x) for x in (new_in_batch or set()))
 
-    # Split scored listings into three lanes based on voting state:
-    #   - hidden    : both partners voted 👎  → collapsed footer
-    #   - favorites : both partners voted 👍  → promoted "⭐ Favorites" section above main
-    #   - visible   : everything else         → main score-sorted list
-    # Eval pages still generate for all three lanes (direct links work,
-    # votes can change).
+    # Split scored listings into lanes based on voting state and scenario:
+    #   - hidden          : both partners voted 👎     → collapsed footer
+    #   - favorites       : both partners voted 👍     → promoted "⭐ Favorites" section
+    #   - visible_main    : main scenario, everyone else  → primary digest list
+    #   - visible_s1      : scenario_1                → collapsed alt-scenario section
+    #   - visible_s2      : scenario_2                → collapsed alt-scenario section
+    # Voting state takes precedence over scenario — a both-up S2 listing still
+    # goes to favorites, a both-down S2 listing still goes to hidden. Eval
+    # pages generate for every listing regardless of lane.
     votes_dict = votes or {}
-    visible: list[dict] = []
+    visible_main: list[dict] = []
+    visible_s1: list[dict] = []
+    visible_s2: list[dict] = []
     hidden: list[dict] = []
     favorites: list[dict] = []
     for s in scored:
@@ -130,24 +135,41 @@ def render(
         c_vote = ((vstate.get("celine") or {}).get("vote") or "").lower()
         if a_vote == "down" and c_vote == "down":
             hidden.append(s)
-        elif a_vote == "up" and c_vote == "up":
+            continue
+        if a_vote == "up" and c_vote == "up":
             favorites.append(s)
+            continue
+        scenario = (s.get("scenario") or "main").lower()
+        if scenario == "scenario_1":
+            visible_s1.append(s)
+        elif scenario == "scenario_2":
+            visible_s2.append(s)
         else:
-            visible.append(s)
+            visible_main.append(s)
 
-    # Count NEW arrivals among visible only — that's what the banner reflects.
+    # Count NEW arrivals across all visible lanes (main + alt) — that's
+    # what the banner reflects. Hidden + already-favorited don't count.
+    visible_all = visible_main + visible_s1 + visible_s2
     new_in_batch_visible = sum(
-        1 for s in visible
+        1 for s in visible_all
         if str((s.get("listing") or {}).get("finn_id") or "") in new_in_batch_set
     )
 
+    # Surface the scenario config block to the template so labels,
+    # descriptions, and the Scenario 2 warning don't have to be hardcoded
+    # in the template.
+    scenarios_cfg = (config or {}).get("scenarios") or {}
+
     html = template.render(
-        scored=visible,
+        scored=visible_main,
         scored_favorites=favorites,
         scored_hidden=hidden,
+        scored_scenario_1=visible_s1,
+        scored_scenario_2=visible_s2,
+        scenarios_cfg=scenarios_cfg,
         scraped_count=scraped_count,
         dropped_count=dropped_count,
-        kept_count=len(visible),
+        kept_count=len(visible_all),
         run_iso=run_dt.isoformat(timespec="seconds"),
         run_human=run_dt.strftime("%a %d %b %Y, %H:%M"),
         run_date=run_dt.strftime("%Y-%m-%d"),
@@ -229,6 +251,9 @@ def render_listing_pages(
             "coordinates": target.get("coordinates"),
         })
 
+    scenarios_cfg = (config or {}).get("scenarios") or {}
+    s2_cfg = scenarios_cfg.get("scenario_2") or {}
+
     written = 0
     for s in scored:
         listing = s.get("listing") or {}
@@ -245,6 +270,13 @@ def render_listing_pages(
                 transit[target["key"]] = None
                 continue
             transit[target["key"]] = commute_details(coords, tcoords)
+        # For Scenario 2 listings, compute the projected post-2029 breakdown
+        # so the eval page can show the Majorstua/Skøyen → Fornebu math.
+        # Cheap — reuses the Entur cache via commute_minutes.
+        scenario = (s.get("scenario") or "main").lower()
+        projected = None
+        if scenario == "scenario_2":
+            projected = projected_post2029_to_fornebu(coords, s2_cfg)
         html = template.render(
             s=s,
             l=listing,
@@ -254,6 +286,8 @@ def render_listing_pages(
             votes=votes,
             voting_endpoint=voting_endpoint,
             new_in_batch=new_in_batch,
+            scenarios_cfg=scenarios_cfg,
+            projected_post2029=projected,
         )
         out_path = listings_dir / f"{finn_id}.html"
         out_path.write_text(html, encoding="utf-8")

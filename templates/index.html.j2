@@ -24,6 +24,7 @@
       <li><strong>Active sub-scores:</strong> wife's commute (real public-transit time via Entur, with Haversine fallback), price/m² vs neighborhood median (K=15 nearest similar listings, full 0-100 range), apartment bucket (LLM-detected light/orientation/ceiling/peis/bathtub/renovation/etc. + Finn facilities), and building bucket (family-friendly + quiet vs. busy street).</li>
       <li><strong>LLM-detected facts</strong> on each card show what Claude pulled from the description. Hover/tap the confidence percentage if shown — low-confidence judgments shouldn't be over-trusted.</li>
       <li><strong>Layout dealbreakers</strong> (long hallways, gjennomgangsrom, kitchen no window, bath off kitchen) are an LLM-driven hard filter that fires only when confidence ≥ 0.7. Listings dropped for this reason are gone from the digest entirely.</li>
+      <li><strong>Two alternate scenarios</strong> appear at the bottom in collapsed sections — listings that don't pass the main location caps but do pass either the relaxed-current-school caps (Scenario 1, 🕒) or the Fornebubanen-projected caps (Scenario 2, 🚇). A listing appears in the highest scenario it qualifies for; no double-listing.</li>
       <li>Each card shows ⚠️ for unverified hard filters. Click the Finn link to verify before getting excited.</li>
     </ul>
   </details>
@@ -235,6 +236,31 @@
     {{ render_card(s, votes, new_in_batch) }}
   {% endfor %}
 </main>
+
+{# ---------- alt-scenario sections (collapsed, below main listings) ---------- #}
+{%- macro render_alt_section(scen_key, scen_emoji, listings) -%}
+  {% if listings %}
+    {% set cfg = scenarios_cfg.get(scen_key, {}) %}
+    <details class="alt-scenario-section alt-scenario-{{ scen_key | replace('_', '-') }}">
+      <summary>
+        <span class="alt-scenario-emoji">{{ scen_emoji }}</span>
+        <span class="alt-scenario-label">{{ cfg.get('label') or scen_key }}</span>
+        <span class="alt-scenario-count">({{ listings|length }})</span>
+        <span class="alt-scenario-hint">click to expand</span>
+      </summary>
+      <div class="alt-scenario-body">
+        {% if cfg.get('description') %}<p class="alt-scenario-description">{{ cfg.get('description') }}</p>{% endif %}
+        {% if cfg.get('warning') %}<p class="alt-scenario-warning">{{ cfg.get('warning') }}</p>{% endif %}
+        <div class="alt-scenario-list">
+          {% for s in listings %}{{ render_card(s, votes, new_in_batch) }}{% endfor %}
+        </div>
+      </div>
+    </details>
+  {% endif %}
+{%- endmacro -%}
+
+{{ render_alt_section('scenario_1', '🕒', scored_scenario_1) }}
+{{ render_alt_section('scenario_2', '🚇', scored_scenario_2) }}
 
 {% if scored_hidden %}
 <details class="hidden-listings-footer">

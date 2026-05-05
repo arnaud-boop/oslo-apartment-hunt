@@ -87,6 +87,30 @@
     </div>
   </section>
 
+  {# ---------- scenario banner (only for non-main listings) ---------- #}
+  {% if s.scenario and s.scenario != 'main' %}
+    {% set scen_cfg = (scenarios_cfg or {}).get(s.scenario, {}) %}
+    {% set scen_emoji = '🚇' if s.scenario == 'scenario_2' else '🕒' %}
+    <section class="scenario-banner scenario-banner-{{ s.scenario | replace('_', '-') }}">
+      <h2>
+        <span class="scenario-banner-emoji">{{ scen_emoji }}</span>
+        {{ scen_cfg.get('label') or s.scenario }}
+      </h2>
+      {% if scen_cfg.get('description') %}
+        <p class="scenario-banner-description">{{ scen_cfg.get('description') }}</p>
+      {% endif %}
+      {% if scen_cfg.get('warning') %}
+        <p class="scenario-banner-warning">{{ scen_cfg.get('warning') }}</p>
+      {% endif %}
+      {% if s.main_scenario_fails %}
+        <p class="scenario-banner-why">
+          <span class="scenario-banner-why-label">Why not in main:</span>
+          {{ s.main_scenario_fails | join('; ') }}
+        </p>
+      {% endif %}
+    </section>
+  {% endif %}
+
   {# ---------- red flags / "no issues" status (always shown when we have
        a salgsoppgave extraction; gives positive confirmation when nothing
        problematic was found rather than silence) ---------- #}
@@ -226,6 +250,37 @@
         {% endif %}
       </div>
     {% endfor %}
+
+    {# Post-2029 projection (Scenario 2 listings only). Modelled commute
+       to Snarøyveien 30 once Fornebubanen opens — assumes ~12 min metro
+       Majorstua/Skøyen ↔ Fornebu and ~5 min walk to school. #}
+    {% if projected_post2029 %}
+      <div class="transit-target transit-projection">
+        <h3>→ Future school post-2029 (via Fornebubanen, projected)</h3>
+        <p class="transit-summary">
+          ~{{ '%.0f' % projected_post2029.total_min }} min total
+          · interchange via {{ projected_post2029.best_interchange | capitalize }}
+        </p>
+        <ol class="transit-legs">
+          <li class="transit-leg">
+            <span class="leg-mode">🚉 transit</span>
+            <span class="leg-from-to">listing → {{ projected_post2029.best_interchange | capitalize }} (today's network)</span>
+            <span class="leg-duration">{{ '%.0f' % projected_post2029.transit_to_interchange_min }} min</span>
+          </li>
+          <li class="transit-leg">
+            <span class="leg-mode">🚇 metro</span>
+            <span class="leg-from-to">{{ projected_post2029.best_interchange | capitalize }} → Fornebu (Fornebubanen, opens ~late 2029)</span>
+            <span class="leg-duration">{{ '%.0f' % projected_post2029.metro_min }} min</span>
+          </li>
+          <li class="transit-leg">
+            <span class="leg-mode">🚶 walk</span>
+            <span class="leg-from-to">Fornebu T-bane → Snarøyveien 30</span>
+            <span class="leg-duration">{{ '%.0f' % projected_post2029.walk_min }} min</span>
+          </li>
+        </ol>
+        <p class="transit-projection-warning">⚠️ assumes Fornebubanen opens on schedule</p>
+      </div>
+    {% endif %}
   </section>
 
   {# ---------- renovations (small dedicated section, salgsoppgave-derived) ---------- #}
