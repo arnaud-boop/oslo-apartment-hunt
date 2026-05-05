@@ -196,9 +196,21 @@ def main() -> int:
             "passed": True,
             "failed": r.failed,
             "unverified": r.unverified,
+            "scenario": r.scenario,
+            "main_scenario_fails": r.main_scenario_fails,
         }
         for r in kept_p2
     ]
+    # Log scenario distribution so a glance at the run shows whether alt
+    # scenarios are firing or quietly empty.
+    from collections import Counter as _C
+    _scen_dist = _C((r.scenario or "main") for r in kept_p2)
+    logger.info(
+        "Scenario distribution: main=%d, scenario_1=%d, scenario_2=%d",
+        _scen_dist.get("main", 0),
+        _scen_dist.get("scenario_1", 0),
+        _scen_dist.get("scenario_2", 0),
+    )
     # Pass the full scrape as the neighborhood-median baseline — gives a
     # denser geographic surface than the ~tens of post-filter survivors.
     scored = score_listings(

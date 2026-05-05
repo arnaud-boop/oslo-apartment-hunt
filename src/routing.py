@@ -375,3 +375,66 @@ def commute_details(
     except (KeyError, TypeError, ValueError):
         return None
     return {"minutes": mins, "summary": None, "legs": None}
+
+
+# --------------------------- post-2029 projection (Fornebubanen) -----------
+
+
+def projected_post2029_to_fornebu(
+    listing_coords: Optional[dict],
+    scenario2_cfg: Optional[dict],
+) -> Optional[dict]:
+    """Project the post-2029 commute from a listing to Snarøyveien 30 (the
+    future French school in Fornebu) via the new Fornebubanen metro line.
+
+    Modelled as:
+      min(transit→Majorstua, transit→Skøyen) + metro_minutes + final_walk_minutes
+
+    Lysaker and the Fornebu terminus itself are intentionally NOT used as
+    interchange candidates — they're effectively at the destination, so
+    routing through them would just be wrong arithmetic.
+
+    Reuses `commute_minutes` (Entur cache + Haversine fallback) for the
+    listing→interchange leg, so this is essentially free after first run.
+
+    Returns a dict with the breakdown (for display on eval pages), or None
+    if input coords are missing or every interchange lookup failed.
+    """
+    if not isinstance(listing_coords, dict):
+        return None
+    fcfg = (scenario2_cfg or {}).get("fornebubanen") or {}
+    interchanges = fcfg.get("interchanges") or {}
+    if not interchanges:
+        return None
+    metro_min = float(fcfg.get("metro_minutes", 12))
+    walk_min = float(fcfg.get("final_walk_minutes", 5))
+
+    best_name: Optional[str] = None
+    best_to_interchange: Optional[float] = None
+    for name, coords in interchanges.items():
+        m = commute_minutes(listing_coords, coords)
+        if m is None:
+            continue
+        if best_to_interchange is None or m < best_to_interchange:
+            best_to_interchange = m
+            best_name = name
+
+    if best_to_interchange is None:
+        return None
+
+    return {
+        "best_interchange": best_name,
+        "transit_to_interchange_min": float(best_to_interchange),
+        "metro_min": metro_min,
+        "walk_min": walk_min,
+        "total_min": float(best_to_interchange) + metro_min + walk_min,
+    }
+
+
+def projected_post2029_minutes(
+    listing_coords: Optional[dict],
+    scenario2_cfg: Optional[dict],
+) -> Optional[float]:
+    """Convenience wrapper returning just the total minutes."""
+    d = projected_post2029_to_fornebu(listing_coords, scenario2_cfg)
+    return d["total_min"] if d else None

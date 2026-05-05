@@ -39,6 +39,7 @@ from typing import Any
 import yaml
 
 from src.routing import commute_minutes
+from src.scenarios import classify as classify_scenario
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +50,13 @@ class FilterResult:
     passed: bool = True
     failed: list[str] = field(default_factory=list)
     unverified: list[str] = field(default_factory=list)
+    # v1.4: which scenario this listing qualifies for. "main" / "scenario_1"
+    # / "scenario_2" / None. Only meaningful when passed is True.
+    scenario: str | None = None
+    # v1.4: failure reasons for the *main* scenario. Empty when scenario
+    # == "main"; populated for alt-scenario listings (informational, shown
+    # on eval page) and for dropped listings (becomes the .failed reason).
+    main_scenario_fails: list[str] = field(default_factory=list)
 
 
 def load_config(path: str | Path) -> dict:
@@ -234,6 +242,9 @@ def apply_hard_filters(
                 result.unverified.append(
                     "could not verify location caps (no coords)"
                 )
+                # Listings without coords pass through as before — keep them
+                # in the main lane (the ⚠️ tag tells you we couldn't check).
+                result.scenario = "main"
             elif not _coords_valid_for_oslo(coords):
                 # Bogus coordinates (likely null-island sentinel or lat/lon
                 # swap from Finn). We can't trust this listing's location at
@@ -243,26 +254,20 @@ def apply_hard_filters(
                     f"{coords.get('lon')}) — outside Greater Oslo region"
                 )
             else:
-                # Each cap is independent and AND-combined. commute_minutes
-                # uses real Entur transit data with Haversine fallback.
-                if cur_coords and cur_cap is not None:
-                    cur_min = commute_minutes(coords, cur_coords)
-                    if cur_min is not None and cur_min > cur_cap:
-                        result.failed.append(
-                            f"current school {cur_min:.0f} min > {cur_cap} cap"
-                        )
-                if nxt_coords and nxt_cap is not None:
-                    nxt_min = commute_minutes(coords, nxt_coords)
-                    if nxt_min is not None and nxt_min > nxt_cap:
-                        result.failed.append(
-                            f"future school {nxt_min:.0f} min > {nxt_cap} cap"
-                        )
-                if celine_coords and celine_cap is not None:
-                    celine_min = commute_minutes(coords, celine_coords)
-                    if celine_min is not None and celine_min > celine_cap:
-                        result.failed.append(
-                            f"Céline's commute {celine_min:.0f} min > {celine_cap} cap"
-                        )
+                # v1.4: classify under main → scenario_1 → scenario_2.
+                # The first match wins; no double-listing.
+                scenario, main_fails = classify_scenario(coords, config)
+                result.main_scenario_fails = list(main_fails)
+                if scenario is None:
+                    # No scenario matched. Surface the main-scenario reasons
+                    # so the dropped-listing log line stays informative.
+                    for f in main_fails:
+                        result.failed.append(f)
+                else:
+                    result.scenario = scenario
+        else:
+            # location_caps disabled altogether — every listing is "main".
+            result.scenario = "main"
 
         # Detail-page filters. Each requires the listing to be enriched. If
         # the corresponding field is absent, the filter goes to ⚠️ unverified.
